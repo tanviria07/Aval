@@ -1,0 +1,11 @@
+# Human Gate Rule
+
+The AI agents in Aval may propose, negotiate, and explain. They may NOT move money, approve a deal, or confirm delivery.
+
+- Ava (the voice avatar) has NO database access and NO money access. She can speak and highlight UI elements only.
+- The negotiating agents can make offers. They cannot press Accept.
+- Only the accept reducer, called by a human identity, can move funds into escrow.
+- Only the confirmDelivery reducer, called by the buyer's human identity, can release funds to the seller.
+- If an LLM is ever used for Ava, it must never be on the money path.
+
+Any code that violates this rule is wrong.

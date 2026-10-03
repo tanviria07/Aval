@@ -1,0 +1,40 @@
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules/
+web/node_modules/
+worker/node_modules/
+
+# Build output
+web/dist/
+worker/dist/
+spacetimedb/target/
+spacetimedb/build/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Python
+agent/__pycache__/
+agent/.venv/
+agent/venv/
+*.pyc
+
+# Rust
+**/target/
+
+# Nessie test files
+body_*.json
