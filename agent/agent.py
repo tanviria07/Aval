@@ -1,4 +1,5 @@
 import os
+import json
 from pathlib import Path
 from dotenv import load_dotenv
 from livekit import agents
@@ -25,6 +26,37 @@ class Ava(Agent):
             instructions="Greet the room in one short sentence: 'Hello, I am Ava. I will host this deal.'"
         )
 
+async def narrate_handler(ctx, payload_str: str) -> str:
+    try:
+        payload = json.loads(payload_str)
+        text = payload.get("text", "")
+        target = payload.get("target", "")
+    except Exception:
+        return "error"
+
+    await ctx.session.say(text)
+
+    if target:
+        try:
+            await ctx.room.local_participant.perform_rpc(
+                destination_identity=ctx.caller_identity,
+                method="ava_highlight",
+                payload=json.dumps({"target": target}),
+            )
+        except Exception:
+            pass
+
+    try:
+        await ctx.room.local_participant.perform_rpc(
+            destination_identity=ctx.caller_identity,
+            method="ava_caption",
+            payload=json.dumps({"text": text}),
+        )
+    except Exception:
+        pass
+
+    return "ok"
+
 async def entrypoint(ctx: agents.JobContext):
     await ctx.connect()
 
@@ -32,6 +64,8 @@ async def entrypoint(ctx: agents.JobContext):
         vad=silero.VAD.load(),
         tts=elevenlabs.TTS(voice_id=VOICE_ID) if VOICE_ID else None,
     )
+
+    ctx.room.local_participant.register_rpc_method("narrate", narrate_handler)
 
     await session.start(
         room=ctx.room,
