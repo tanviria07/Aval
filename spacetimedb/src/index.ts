@@ -719,11 +719,21 @@ export const sendTransfer = spacetime.procedure(
       const baseRow = tx.db.config.key.find('nessie_base');
       const d = tx.db.deal.id.find(arg.dealId);
       const escrow = tx.db.account.slot.find('ESCROW');
+      let buyerSlot: string | undefined;
+      let sellerSlot: string | undefined;
+      if (d) {
+        const buyerM = tx.db.member.identity.find(d.buyerId);
+        const sellerM = tx.db.member.identity.find(d.sellerId);
+        buyerSlot = buyerM?.slot;
+        sellerSlot = sellerM?.slot;
+      }
       return {
         key: keyRow?.value,
         base: baseRow?.value ?? 'https://api.nessieisreal.com',
         deal: d,
         escrow,
+        buyerSlot,
+        sellerSlot,
       };
     });
 
@@ -741,8 +751,22 @@ export const sendTransfer = spacetime.procedure(
       return {};
     }
 
-    const sourceSlot = arg.kind === 'hold' ? 'B' : 'ESCROW';
-    const destSlot = arg.kind === 'hold' ? 'ESCROW' : arg.kind === 'release' ? 'A' : 'B';
+    const sourceSlot = arg.kind === 'hold' ? data.buyerSlot : 'ESCROW';
+    const destSlot = arg.kind === 'hold' ? 'ESCROW' : arg.kind === 'release' ? data.sellerSlot : data.buyerSlot;
+
+    if (sourceSlot === undefined || destSlot === undefined) {
+      ctx.withTx(tx => {
+        tx.db.nessie_log.insert({
+          id: 0n,
+          method: 'SKIP',
+          path: `outbox ${arg.kind} deal ${arg.dealId}`,
+          status: 0,
+          note: 'Missing buyer or seller slot',
+          at: ctx.timestamp.microsSinceUnixEpoch,
+        });
+      });
+      return {};
+    }
 
     const source = ctx.withTx(tx => tx.db.account.slot.find(sourceSlot));
     const dest = ctx.withTx(tx => tx.db.account.slot.find(destSlot));
