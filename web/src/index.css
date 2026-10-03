@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  background: #f8fafc;
+  color: #0b1220;
+}
+
+#root {
+  min-height: 100svh;
+}
+
+@keyframes glow-ring {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0);
+  }
+  50% {
+    box-shadow: 0 0 0 3px #8b5cf6, 0 0 18px #8b5cf6;
+  }
+}
+
+.glow {
+  animation: glow-ring 2s ease-in-out infinite;
+}
