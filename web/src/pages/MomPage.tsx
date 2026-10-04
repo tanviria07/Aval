@@ -62,6 +62,21 @@ export function MomPage() {
   const active = mine.find(payment => activeStatuses.includes(payment.status))
   const newest = mine[0]
   const family = membersOnPayment(members, active ? [active.elderId] : [])
+  const payees = accounts
+    .filter(row => row.label.trim() && row.slot !== 'MARGARET' && row.slot !== 'ESCROW')
+    .sort((a, b) => a.label.localeCompare(b.label))
+  const payeeReason = useRef('')
+
+  useEffect(() => {
+    if (payees.length > 0) return
+    const reason =
+      accounts.length === 0
+        ? 'The account subscription has no rows.'
+        : 'No payee rows left after hiding Margaret and Escrow.'
+    if (payeeReason.current === reason) return
+    payeeReason.current = reason
+    console.error('No payees yet', reason)
+  }, [accounts, payees.length])
 
   useEffect(() => {
     let cancelled = false
@@ -108,7 +123,7 @@ export function MomPage() {
 
   async function onSend() {
     const amountCents = dollarsToCents(amount)
-    if (!payee || amountCents == null) return
+    if (!payee || amountCents == null || amountCents <= 0) return
     setNotice('')
     setSending(true)
     try {
@@ -157,7 +172,7 @@ export function MomPage() {
         )}
         {screen === 'send' && (
           <Send
-            customers={account?.customers ?? []}
+            payees={payees.map(row => ({ id: row.slot, name: row.label }))}
             payee={payee}
             amount={amount}
             notice={notice}
@@ -261,7 +276,7 @@ function Home({
 }
 
 function Send({
-  customers,
+  payees,
   payee,
   amount,
   notice,
@@ -271,7 +286,7 @@ function Send({
   onBack,
   onSubmit,
 }: {
-  customers: MomAccount['customers']
+  payees: { id: string; name: string }[]
   payee: string
   amount: string
   notice: string
@@ -281,28 +296,34 @@ function Send({
   onBack: () => void
   onSubmit: () => void
 }) {
+  const cents = dollarsToCents(amount)
   return (
     <div className="rise-in flex flex-col gap-6">
       <button type="button" onClick={onBack} className="self-start font-sans text-base text-sepia">
         Back
       </button>
       <h1 className="font-serif text-[32px]">Send money</h1>
-      <ul className="flex flex-col gap-2">
-        {customers.map(customer => (
-          <li key={customer.id}>
-            <button
-              type="button"
-              onClick={() => onPayee(customer.name)}
-              className={`flex min-h-16 w-full items-center gap-3 border bg-paper-2 px-4 text-left ${
-                payee === customer.name ? 'border-2 border-ink' : 'border-line'
-              }`}
-            >
-              <Avatar name={customer.name} size={40} />
-              <span className="font-sans text-[20px]">{customer.name}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
+      {payees.length === 0 ? (
+        <p className="font-sans text-[20px] text-sepia">No payees yet</p>
+      ) : (
+        <ul className="flex flex-col gap-3">
+          {payees.map(row => (
+            <li key={row.id}>
+              <button
+                type="button"
+                onClick={() => onPayee(row.name)}
+                aria-pressed={payee === row.name}
+                className={`flex min-h-[84px] w-full items-center gap-4 border-2 bg-paper-2 px-4 text-left ${
+                  payee === row.name ? 'border-ink bg-white' : 'border-line'
+                }`}
+              >
+                <Avatar name={row.name} size={56} />
+                <span className="font-sans text-[24px]">{row.name}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       <label className="block">
         <span className="font-type text-sm text-sepia">Amount</span>
         <input
@@ -314,7 +335,7 @@ function Send({
         />
       </label>
       {notice && <p className="font-sans text-base text-stamp">{notice}</p>}
-      <Button className="min-h-16" pending={sending} disabled={!payee || dollarsToCents(amount) == null} onClick={onSubmit}>
+      <Button className="min-h-16" pending={sending} disabled={!payee || cents == null || cents <= 0} onClick={onSubmit}>
         Send
       </Button>
     </div>
