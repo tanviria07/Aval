@@ -176,11 +176,17 @@ export const join = async (name: string, role: Role, slot: string) => {
 };
 
 export const requestPayment = async (payeeName: string, amountCents: number) => {
+  console.log('requestPayment', { payeeName, amountCents });
   await whenConnected();
-  await getConnection().reducers.requestPayment({
-    payeeName,
-    amountCents: BigInt(amountCents),
-  });
+  try {
+    await getConnection().reducers.requestPayment({
+      payeeName,
+      amountCents: BigInt(amountCents),
+    });
+  } catch (err) {
+    console.error('requestPayment reducer error', err);
+    throw err;
+  }
 };
 
 export const pausePayment = async (paymentId: string) => {

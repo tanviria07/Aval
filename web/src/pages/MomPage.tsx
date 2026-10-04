@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CheckCircle, House, Shield } from 'lucide-react'
+import { Check, CheckCircle, House, Shield } from 'lucide-react'
 import {
   cancelPayment,
   computeRiskScore,
@@ -48,9 +48,9 @@ export function MomPage() {
   const members = useRows(onMembers)
   const ledgerCents = accounts.find(row => row.slot === 'MARGARET')?.balanceCents
   const [account, setAccount] = useState<MomAccount | null>(null)
-  const [payee, setPayee] = useState('')
+  const [payeeSlot, setPayeeSlot] = useState('')
   const [amount, setAmount] = useState('')
-  const [notice, setNotice] = useState('')
+  const [toast, setToast] = useState('')
   const [sending, setSending] = useState(false)
   const [view, setView] = useState<View>('home')
   const baseline = useRef('')
@@ -122,24 +122,41 @@ export function MomPage() {
   }, [newest?.id, newest?.status, payments.length, members.length])
 
   async function onSend() {
+    const selected = payees.find(row => row.slot === payeeSlot)
+    const payeeName = selected?.label.trim() ?? ''
     const amountCents = dollarsToCents(amount)
-    if (!payee || amountCents == null || amountCents <= 0) return
-    setNotice('')
+    if (!payeeName || amountCents == null || amountCents <= 0) {
+      const message = !payeeName ? 'Choose a payee' : 'Enter an amount'
+      console.error('requestPayment', message)
+      setToast(message)
+      return
+    }
+    setToast('')
     setSending(true)
     try {
-      const raw = await computeRiskScore(payee, amountCents)
+      const raw = await computeRiskScore(payeeName, amountCents)
       const result = JSON.parse(raw) as { error?: string; score?: number; held?: boolean }
       if (result.error === 'insufficient_funds') {
-        setNotice('The balance cannot cover this payment.')
+        const message = "The balance cannot cover this payment."
+        console.error('computeRiskScore', result.error)
+        setToast(message)
         return
       }
       if (result.error || result.score == null || result.held == null) {
-        setNotice('The bank did not return a risk score.')
+        const message = result.error || 'The bank did not return a risk score.'
+        console.error('computeRiskScore', message)
+        setToast(message)
         return
       }
-      await requestPayment(payee, amountCents)
+      console.log('requestPayment', { payeeName, amountCents, slot: selected?.slot })
+      await requestPayment(payeeName, amountCents)
+      setPayeeSlot('')
       setAmount('')
       setView('home')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'The payment did not go through.'
+      console.error('requestPayment reducer error', err)
+      setToast(message)
     } finally {
       setSending(false)
     }
@@ -173,11 +190,10 @@ export function MomPage() {
         {screen === 'send' && (
           <Send
             payees={payees.map(row => ({ id: row.slot, name: row.label }))}
-            payee={payee}
+            payeeSlot={payeeSlot}
             amount={amount}
-            notice={notice}
             sending={sending}
-            onPayee={setPayee}
+            onPayee={setPayeeSlot}
             onAmount={setAmount}
             onBack={() => setView('home')}
             onSubmit={() => void onSend()}
@@ -210,6 +226,13 @@ export function MomPage() {
           </Link>
         </p>
       </div>
+      {toast && (
+        <div className="fixed inset-x-0 bottom-6 z-50 flex justify-center px-5">
+          <p role="status" className="max-w-[440px] rounded-btn border-2 border-stamp bg-paper px-4 py-3 text-center font-sans text-base text-stamp shadow-scrap">
+            {toast}
+          </p>
+        </div>
+      )}
     </main>
   )
 }
@@ -277,9 +300,8 @@ function Home({
 
 function Send({
   payees,
-  payee,
+  payeeSlot,
   amount,
-  notice,
   sending,
   onPayee,
   onAmount,
@@ -287,16 +309,16 @@ function Send({
   onSubmit,
 }: {
   payees: { id: string; name: string }[]
-  payee: string
+  payeeSlot: string
   amount: string
-  notice: string
   sending: boolean
-  onPayee: (name: string) => void
+  onPayee: (slot: string) => void
   onAmount: (value: string) => void
   onBack: () => void
   onSubmit: () => void
 }) {
   const cents = dollarsToCents(amount)
+  const selected = payees.some(row => row.id === payeeSlot)
   return (
     <div className="rise-in flex flex-col gap-6">
       <button type="button" onClick={onBack} className="self-start font-sans text-base text-sepia">
@@ -307,21 +329,25 @@ function Send({
         <p className="font-sans text-[20px] text-sepia">No payees yet</p>
       ) : (
         <ul className="flex flex-col gap-3">
-          {payees.map(row => (
-            <li key={row.id}>
-              <button
-                type="button"
-                onClick={() => onPayee(row.name)}
-                aria-pressed={payee === row.name}
-                className={`flex min-h-[84px] w-full items-center gap-4 border-2 bg-paper-2 px-4 text-left ${
-                  payee === row.name ? 'border-ink bg-white' : 'border-line'
-                }`}
-              >
-                <Avatar name={row.name} size={56} />
-                <span className="font-sans text-[24px]">{row.name}</span>
-              </button>
-            </li>
-          ))}
+          {payees.map(row => {
+            const chosen = payeeSlot === row.id
+            return (
+              <li key={row.id}>
+                <button
+                  type="button"
+                  onClick={() => onPayee(row.id)}
+                  aria-pressed={chosen}
+                  className={`flex min-h-[84px] w-full items-center gap-4 border-2 px-4 text-left ${
+                    chosen ? 'border-teal-600 bg-white' : 'border-line bg-paper-2 hover:border-line hover:bg-paper-2'
+                  }`}
+                >
+                  <Avatar name={row.name} size={56} />
+                  <span className="font-sans text-[24px]">{row.name}</span>
+                  {chosen && <Check className="ml-auto shrink-0 text-teal-600" size={28} strokeWidth={2.5} aria-hidden />}
+                </button>
+              </li>
+            )
+          })}
         </ul>
       )}
       <label className="block">
@@ -334,8 +360,7 @@ function Send({
           className="mt-2 h-20 w-full border border-line bg-white px-4 font-sans text-[44px] tabular-nums text-ink"
         />
       </label>
-      {notice && <p className="font-sans text-base text-stamp">{notice}</p>}
-      <Button className="min-h-16" pending={sending} disabled={!payee || cents == null || cents <= 0} onClick={onSubmit}>
+      <Button className="min-h-16" pending={sending} disabled={!selected || cents == null || cents <= 0} onClick={onSubmit}>
         Send
       </Button>
     </div>
