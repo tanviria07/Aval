@@ -4,7 +4,7 @@
 
 Aval is a family safety hold for an older parent's bank account. Everyday payments go straight through. Risky ones wait at the bank while the family decides together, live on their phones.
 
-- **Live demo:** https://aval-liart.vercel.app/demo
+- **Live demo:** https://aval-liart.vercel.app/join
 - **Devpost and demo video:** https://devpost.com/software/aval
 
 Built at MHacks 2026 for the Capital One Nessie, SpacetimeDB and FinTech tracks.
