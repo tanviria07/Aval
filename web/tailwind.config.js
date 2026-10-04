@@ -4,25 +4,48 @@ export default {
   theme: {
     extend: {
       colors: {
-        ink: "#0B1220",
-        surface: "#FFFFFF",
-        canvas: "#F8FAFC",
-        slate2: "#64748B",
-        teal: {
-          DEFAULT: "#14B8A6",
-          100: "#CCFBF1",
+        paper: "#FBF8F3",
+        mist: "#F5F6F8",
+        ink: {
+          DEFAULT: "#0E1424",
+          2: "#1A2236",
         },
-        amber: {
-          DEFAULT: "#F59E0B",
-          100: "#FEF3C7",
+        line: "#E7E2D9",
+        muted: "#6B7280",
+        held: {
+          DEFAULT: "#B45309",
+          bg: "#FEF3C7",
         },
-        green: "#22C55E",
-        red: "#EF4444",
-        violet: "#8B5CF6",
+        release: {
+          DEFAULT: "#0F766E",
+          bg: "#CCFBF1",
+        },
+        home: {
+          DEFAULT: "#15803D",
+          bg: "#DCFCE7",
+        },
+        alert: {
+          DEFAULT: "#BE123C",
+          bg: "#FFE4E6",
+        },
       },
       fontFamily: {
         sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+        serif: ["Fraunces", "Georgia", "serif"],
         mono: ["JetBrains Mono", "ui-monospace", "SFMono-Regular", "monospace"],
+      },
+      boxShadow: {
+        vault: "0 1px 2px rgba(14,20,36,.06), 0 8px 24px rgba(14,20,36,.06)",
+      },
+      borderRadius: {
+        card: "20px",
+        btn: "14px",
+      },
+      transitionDuration: {
+        vault: "200ms",
+      },
+      transitionTimingFunction: {
+        vault: "ease-out",
       },
     },
   },

@@ -17,6 +17,13 @@ export type PaymentStatus =
 
 export type Member = { id: string; name: string; role: Role; slot: string; online: boolean };
 
+export function membersOnPayment(members: Member[], ownerIds: string[]): Member[] {
+  const owners = new Set(ownerIds);
+  return members
+    .filter(member => member.role === 'guardian' || (member.role === 'mom' && owners.has(member.id)))
+    .sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name));
+}
+
 export type Account = { slot: string; label: string; balanceCents: number };
 
 export type Payment = {
@@ -194,6 +201,16 @@ export const fetchMomAccount = async (): Promise<MomAccount & { error?: string }
   await whenConnected();
   const raw = await getConnection().procedures.fetchMomAccount({});
   return JSON.parse(raw) as MomAccount & { error?: string };
+};
+
+export const seedBank = async () => {
+  await whenConnected();
+  await getConnection().procedures.seedBank({});
+};
+
+export const demoReset = async () => {
+  await whenConnected();
+  await getConnection().reducers.demoReset({});
 };
 
 export const onMembers = (cb: (members: Member[]) => void) => {
