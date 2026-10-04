@@ -3,7 +3,7 @@ import QRCode from 'qrcode'
 import { Star } from 'lucide-react'
 import {
   demoReset,
-  membersOnPayment,
+  listedFamily,
   onAccounts,
   onMembers,
   onNessieLog,
@@ -44,7 +44,7 @@ export function DemoPage() {
   const held = [...payments]
     .filter(payment => payment.status === 'held' || payment.status === 'objection')
     .sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? 1 : -1))[0]
-  const listed = membersOnPayment(members, held ? [held.elderId] : [])
+  const listed = listedFamily(members, held)
   const mom =
     listed.find(member => member.role === 'mom') ??
     members.find(member => member.role === 'mom' && member.slot === 'A') ??
@@ -251,7 +251,7 @@ function latestAction(member: Member, payment?: Payment): { label: string; tone:
   const stops = (payment.stoppedBy ?? '').split(',').filter(Boolean)
   if (stops.includes(member.id)) return { label: 'Stopped', tone: 'red' }
   if (payment.pausedBy === member.id) return { label: 'Paused', tone: 'mustard' }
-  if (payment.paidBy === member.id) return { label: 'Approved', tone: 'sage' }
+  if (payment.approvedBy === member.id || payment.paidBy === member.id) return { label: 'Approved', tone: 'sage' }
   return waiting
 }
 

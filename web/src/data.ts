@@ -24,6 +24,21 @@ export function membersOnPayment(members: Member[], ownerIds: string[]): Member[
     .sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name));
 }
 
+export function listedFamily(members: Member[], payment?: Payment): Member[] {
+  const voted = new Set(
+    [payment?.pausedBy, payment?.paidBy, payment?.approvedBy, ...(payment?.stoppedBy ?? '').split(',')]
+      .map(id => id?.trim())
+      .filter((id): id is string => Boolean(id)),
+  );
+  return members
+    .filter(member => {
+      if (member.role === 'mom') return member.id === payment?.elderId;
+      if (member.role !== 'guardian') return false;
+      return member.online || voted.has(member.id);
+    })
+    .sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name));
+}
+
 export type Account = { slot: string; label: string; balanceCents: number };
 
 export type Payment = {
@@ -39,6 +54,7 @@ export type Payment = {
   paidBy?: string;
   pausedBy?: string;
   stoppedBy?: string;
+  approvedBy?: string;
   transferId?: string;
   createdAt: number;
 };
@@ -248,6 +264,7 @@ export const onPayments = (cb: (payments: Payment[]) => void) => {
     paidBy: row.paidBy?.toHexString(),
     pausedBy: row.pausedBy?.toHexString(),
     stoppedBy: row.stoppedBy,
+    approvedBy: row.approvedBy?.toHexString(),
     transferId: row.transferId,
     createdAt: Number(row.createdAt),
   }), cb);

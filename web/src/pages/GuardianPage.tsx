@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Check, Pause, Star, X } from 'lucide-react'
 import {
-  membersOnPayment,
+  listedFamily,
   onMembers,
   onPayments,
   pausePayment,
@@ -29,7 +29,7 @@ export function GuardianPage() {
     .filter(payment => payment.status === 'held' || payment.status === 'objection')
     .sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? 1 : -1))
   const current = held[0]
-  const listed = membersOnPayment(members, held.map(payment => payment.elderId))
+  const listed = listedFamily(members, current)
   const mom =
     listed.find(member => member.role === 'mom') ??
     members.find(member => member.role === 'mom' && member.slot === 'A') ??
