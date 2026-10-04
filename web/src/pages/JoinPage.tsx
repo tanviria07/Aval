@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Wallet, Users } from 'lucide-react'
-import { currentIdentity, join, onMembers, useRows, type Role } from '../data'
+import { currentIdentity, join, onMembers, plainMessage, useRows, type Role } from '../data'
 import { Button } from '../components/Button'
 import { Logo } from '../components/Logo'
 import { PaperCard } from '../components/PaperCard'
@@ -13,9 +13,13 @@ export function JoinPage() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const switching = params.get('switch') === '1'
+  const familyOnly = params.get('role') === 'family'
   const members = useRows(onMembers)
   const [name, setName] = useState('')
-  const [role, setRole] = useState<Role>('mom')
+  const [picked, setPicked] = useState<Role>(familyOnly ? 'guardian' : 'mom')
+  const [toast, setToast] = useState('')
+  const [pending, setPending] = useState(false)
+  const role: Role = familyOnly ? 'guardian' : picked
   const me = members.find(member => member.id === currentIdentity())
 
   useEffect(() => {
@@ -29,10 +33,19 @@ export function JoinPage() {
     return choices.find(slot => !used.has(slot)) ?? choices[0]
   }
 
-  function enter() {
-    if (!name.trim()) return
-    join(name.trim(), role, pickSlot())
-    navigate(role === 'mom' ? '/mom' : '/guardian')
+  async function enter() {
+    if (!name.trim() || pending) return
+    setToast('')
+    setPending(true)
+    try {
+      await join(name.trim(), role, pickSlot())
+      navigate(role === 'mom' ? '/mom' : '/guardian')
+    } catch (err) {
+      console.error('join', err)
+      setToast(plainMessage(err, 'Could not join.'))
+    } finally {
+      setPending(false)
+    }
   }
 
   return (
@@ -41,19 +54,21 @@ export function JoinPage() {
         <Logo />
         <h1 className="mt-10 font-serif text-[34px] leading-tight">Who are you in this family?</h1>
         <div className="mt-8 flex flex-col gap-4">
-          <RoleCard
-            selected={role === 'mom'}
-            title="I'm Mom"
-            detail="I send payments from my account"
-            icon={<Wallet strokeWidth={1.75} className="text-stamp" />}
-            onClick={() => setRole('mom')}
-          />
+          {!familyOnly && (
+            <RoleCard
+              selected={role === 'mom'}
+              title="I'm Mom"
+              detail="I send payments from my account"
+              icon={<Wallet strokeWidth={1.75} className="text-stamp" />}
+              onClick={() => setPicked('mom')}
+            />
+          )}
           <RoleCard
             selected={role === 'guardian'}
             title="I'm family"
             detail="I help keep those payments safe"
             icon={<Users strokeWidth={1.75} className="text-sage-ink" />}
-            onClick={() => setRole('guardian')}
+            onClick={() => setPicked('guardian')}
           />
         </div>
         <label className="mt-8 block">
@@ -65,10 +80,17 @@ export function JoinPage() {
             className="h-14 w-full rounded-btn border border-line bg-white px-4 font-sans text-lg text-ink"
           />
         </label>
-        <Button className="mt-4" disabled={!name.trim()} onClick={enter}>
+        <Button className="mt-4" disabled={!name.trim()} pending={pending} onClick={() => void enter()}>
           Continue
         </Button>
       </section>
+      {toast && (
+        <div className="fixed inset-x-0 bottom-6 z-50 flex justify-center px-5">
+          <p role="status" className="max-w-[420px] rounded-btn border-2 border-stamp bg-paper px-4 py-3 text-center font-sans text-base text-stamp shadow-scrap">
+            {toast}
+          </p>
+        </div>
+      )}
     </main>
   )
 }

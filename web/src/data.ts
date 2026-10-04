@@ -17,6 +17,19 @@ export type PaymentStatus =
 
 export type Member = { id: string; name: string; role: Role; slot: string; online: boolean };
 
+export function plainMessage(err: unknown, fallback: string): string {
+  const raw =
+    err instanceof Error
+      ? err.message
+      : typeof err === 'string'
+        ? err
+        : err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string'
+          ? (err as { message: string }).message
+          : '';
+  const text = raw.replace(/The module instance encountered a fatal error:\s*/gi, '').trim();
+  return text || fallback;
+}
+
 export function membersOnPayment(members: Member[], ownerIds: string[]): Member[] {
   const owners = new Set(ownerIds);
   return members

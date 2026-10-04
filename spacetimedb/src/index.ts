@@ -421,6 +421,14 @@ export const join = spacetime.reducer(
   { name: t.string(), role: t.string(), slot: t.string() },
   (ctx, { name, role, slot }) => {
     if (role !== 'mom' && role !== 'guardian') throw new SenderError('Pick Mom or Guardian');
+    if (role === 'mom') {
+      const senderHex = ctx.sender.toHexString();
+      for (const member of ctx.db.member.iter()) {
+        if (member.identity.toHexString() === senderHex) continue;
+        if (member.role !== 'mom' || member.name === 'Bank Admin' || !member.online) continue;
+        throw new SenderError('This family already has a Mom. Please join as family.');
+      }
+    }
     const existing = ctx.db.member.identity.find(ctx.sender);
     if (existing) {
       ctx.db.member.identity.update({ ...existing, name, role, slot, online: true });

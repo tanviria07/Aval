@@ -4,6 +4,7 @@ import { Star } from 'lucide-react'
 import {
   demoReset,
   listedFamily,
+  plainMessage,
   onAccounts,
   onMembers,
   onNessieLog,
@@ -60,7 +61,7 @@ export function DemoPage() {
     try {
       await action()
     } catch (err) {
-      setNote(err instanceof Error ? err.message : 'That did not go through.')
+      setNote(plainMessage(err, 'That did not go through.'))
     }
   }
 
@@ -402,7 +403,7 @@ function LedgerLine({ log, payments, fresh }: { log: NessieLog; payments: Paymen
 function JoinQr({ name }: { name: string }) {
   const [svg, setSvg] = useState('')
   useEffect(() => {
-    const url = `${window.location.origin}/join`
+    const url = `${window.location.origin}/join?role=family`
     QRCode.toString(url, { type: 'svg', margin: 0, color: { dark: '#2E241F', light: '#F4ECDD' } })
       .then(setSvg)
       .catch(() => setSvg(''))

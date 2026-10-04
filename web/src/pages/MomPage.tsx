@@ -7,6 +7,7 @@ import {
   confirmPayment,
   currentIdentity,
   fetchMomAccount,
+  plainMessage,
   membersOnPayment,
   onAccounts,
   onMembers,
@@ -47,15 +48,7 @@ function bankFailure(status?: number, source?: string) {
 }
 
 function thrownReason(err: unknown) {
-  const raw =
-    err instanceof Error
-      ? err.message
-      : typeof err === 'string'
-        ? err
-        : err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string'
-          ? (err as { message: string }).message
-          : ''
-  const text = raw.trim()
+  const text = plainMessage(err, '')
   if (!text) return "The bank didn't respond. Please try again."
   if (/429|rate limit|too many requests/i.test(text)) return 'The bank is busy. Please try again.'
   if (/timeout|timed out|deadline|didn't respond|did not respond|network|fetch failed/i.test(text)) {

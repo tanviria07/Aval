@@ -4,6 +4,7 @@ import { Check, Pause, Star, X } from 'lucide-react'
 import {
   listedFamily,
   onMembers,
+  plainMessage,
   onPayments,
   pausePayment,
   releasePayment,
@@ -177,7 +178,7 @@ function ActionBar({ payment, dock = false }: { payment: Payment; dock?: boolean
     try {
       await action()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Someone already acted')
+      setError(plainMessage(err, 'Someone already acted'))
     } finally {
       setPending('')
     }
