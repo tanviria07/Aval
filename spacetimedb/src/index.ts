@@ -2,7 +2,7 @@ import { ScheduleAt } from 'spacetimedb';
 import { schema, table, t, SenderError } from 'spacetimedb/server';
 
 const OBJECTION_SECONDS = 60;
-const HOLD_SECONDS = 120; // demo value; production would be 86400
+const HOLD_SECONDS = 150; // demo value; production would be 86400
 const OBJECTION_MICROS = BigInt(OBJECTION_SECONDS) * 1_000_000n;
 const HOLD_MICROS = BigInt(HOLD_SECONDS) * 1_000_000n;
 const HIGH_RISK_SCORE = 30;
@@ -250,6 +250,24 @@ function isHighRisk(score: number, knownBiller: boolean): boolean {
 
 function scamPattern(name: string): boolean {
   return /tech\s*support|\bgift\s*cards?\b|\birs\b|social security|warranty|refund department/i.test(name);
+}
+
+function payeeKind(db: any, payeeName: string): string {
+  for (const row of db.account.iter()) {
+    if (!sameName(row.label, payeeName)) continue;
+    if (row.slot === 'DANIEL') return 'family';
+    if (row.slot === 'PALO_ALTO_ELECTRIC') return 'biller';
+  }
+  return '';
+}
+
+function avalPaidBefore(db: any, payeeName: string, payeeAccountId: string): boolean {
+  for (const row of db.payment.iter()) {
+    if (row.status !== 'sent' && row.status !== 'released') continue;
+    if (sameName(row.payeeName, payeeName)) return true;
+    if (payeeAccountId && row.payeeNessieId === payeeAccountId) return true;
+  }
+  return false;
 }
 
 function requireMomSender(db: any, sender: any) {
@@ -1001,9 +1019,15 @@ export const computeRiskScore = spacetime.procedure(
         return JSON.stringify({ error: 'nessie_http', source: `GET ${transfersPath}`, status: transfersRes.status });
       }
       const count = transfersOk ? asArray(transfersRes.body).length : 0;
-      if (count === 0) {
+      const trusted = ctx.withTx(tx => {
+        const kind = payeeKind(tx.db, payeeName);
+        return kind === 'family' || kind === 'biller';
+      });
+      const paidBefore =
+        count > 0 || ctx.withTx(tx => avalPaidBefore(tx.db, payeeName, payeeAccountId));
+      if (!trusted && !paidBefore) {
         score = pushReason(reasons, 'never_paid', 'Never paid', 30, `GET ${transfersPath}`, score);
-      } else if (count < 4) {
+      } else if (count > 0 && count < 4) {
         score = pushReason(reasons, 'few_transfers', `Payee has only received ${count} transfers`, 15, `GET ${transfersPath}`, score);
       } else if (count >= 50) {
         score = pushReason(reasons, 'established_merchant', `Established merchant (${count} transfers)`, -20, `GET ${transfersPath}`, score);
@@ -1017,7 +1041,7 @@ export const computeRiskScore = spacetime.procedure(
       }
       const balance = Number(accountRes.body?.balance ?? 0);
       if (balance === 0) {
-        score = pushReason(reasons, 'zero_balance', 'Payee has never held a balance', 20, `GET ${accountPath}`, score);
+        score = pushReason(reasons, 'zero_balance', 'Receiving account is brand new', 20, `GET ${accountPath}`, score);
       }
     }
 
@@ -1032,6 +1056,11 @@ export const computeRiskScore = spacetime.procedure(
     const margaretBills = asArray(billsRes.body).filter(bill => bill?.account_id === margaretAccountId);
     const known = margaretBills.some(bill => sameName(String(bill?.payee ?? ''), payeeName));
     if (known) {
+      const neverPaid = reasons.findIndex(reason => reason.code === 'never_paid');
+      if (neverPaid >= 0) {
+        score -= reasons[neverPaid].points;
+        reasons.splice(neverPaid, 1);
+      }
       score = pushReason(reasons, 'known_biller', 'Known monthly biller', -40, `GET ${billsPath}`, score);
     }
     let usualCents = 0;
