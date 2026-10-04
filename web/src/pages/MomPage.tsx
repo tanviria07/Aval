@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { CheckCircle, House, Shield } from 'lucide-react'
 import {
   cancelPayment,
@@ -47,7 +48,6 @@ export function MomPage() {
   const members = useRows(onMembers)
   const ledgerCents = accounts.find(row => row.slot === 'MARGARET')?.balanceCents
   const [account, setAccount] = useState<MomAccount | null>(null)
-  const [loadError, setLoadError] = useState('')
   const [payee, setPayee] = useState('')
   const [amount, setAmount] = useState('')
   const [notice, setNotice] = useState('')
@@ -64,12 +64,31 @@ export function MomPage() {
   const family = membersOnPayment(members, active ? [active.elderId] : [])
 
   useEffect(() => {
-    fetchMomAccount()
-      .then(snapshot => {
-        setAccount(snapshot)
-        setLoadError(snapshot && 'error' in snapshot ? String((snapshot as { error?: string }).error) : '')
-      })
-      .catch(() => setLoadError('Could not read the account from the bank.'))
+    let cancelled = false
+    let retried = false
+    let timer = 0
+
+    function refresh() {
+      fetchMomAccount()
+        .then(snapshot => {
+          if (cancelled) return
+          if (snapshot?.error) throw new Error(snapshot.error)
+          setAccount(snapshot)
+        })
+        .catch(err => {
+          if (cancelled) return
+          console.error('Aval account refresh failed', err)
+          if (retried) return
+          retried = true
+          timer = window.setTimeout(refresh, 3000)
+        })
+    }
+
+    refresh()
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
   }, [])
 
   useEffect(() => {
@@ -131,7 +150,6 @@ export function MomPage() {
           <Home
             name={me?.name || 'Margaret'}
             balance={balance}
-            loadError={loadError}
             bills={account?.bills ?? []}
             payments={mine}
             onSend={() => setView('send')}
@@ -171,6 +189,11 @@ export function MomPage() {
           />
         )}
         {screen === 'result' && newest && <Result payment={newest} onHome={() => setView('home')} />}
+        <p className="mt-auto pt-8 text-center">
+          <Link to="/join?switch=1" className="font-sans text-sm text-sepia">
+            Not you? Switch
+          </Link>
+        </p>
       </div>
     </main>
   )
@@ -179,14 +202,12 @@ export function MomPage() {
 function Home({
   name,
   balance,
-  loadError,
   bills,
   payments,
   onSend,
 }: {
   name: string
   balance?: number
-  loadError: string
   bills: MomAccount['bills']
   payments: Payment[]
   onSend: () => void
@@ -201,7 +222,6 @@ function Home({
           <Shield size={18} strokeWidth={1.75} aria-hidden />
           Protected by your family
         </p>
-        {loadError && <p className="mt-3 font-sans text-base text-stamp">{loadError}</p>}
       </PaperCard>
       <Button className="min-h-16 text-lg" onClick={onSend}>
         Send money

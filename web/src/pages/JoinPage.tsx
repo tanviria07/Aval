@@ -1,7 +1,7 @@
-import { useState, type ReactNode } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState, type ReactNode } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Wallet, Users } from 'lucide-react'
-import { join, onMembers, useRows, type Role } from '../data'
+import { currentIdentity, join, onMembers, useRows, type Role } from '../data'
 import { Button } from '../components/Button'
 import { Logo } from '../components/Logo'
 import { PaperCard } from '../components/PaperCard'
@@ -11,9 +11,17 @@ const SLOTS = ['A', 'B', 'C', 'D'] as const
 
 export function JoinPage() {
   const navigate = useNavigate()
+  const [params] = useSearchParams()
+  const switching = params.get('switch') === '1'
   const members = useRows(onMembers)
   const [name, setName] = useState('')
   const [role, setRole] = useState<Role>('mom')
+  const me = members.find(member => member.id === currentIdentity())
+
+  useEffect(() => {
+    if (switching || !me) return
+    navigate(me.role === 'mom' ? '/mom' : '/guardian', { replace: true })
+  }, [switching, me, navigate])
 
   function pickSlot() {
     const used = new Set(members.map(member => member.slot))

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Check, Pause, Star, X } from 'lucide-react'
 import {
   membersOnPayment,
@@ -57,6 +58,11 @@ export function GuardianPage() {
             <ActionBar payment={payment} />
           </div>
         ))}
+        <p className="mt-auto pt-8 text-center">
+          <Link to="/join?switch=1" className="font-sans text-sm text-sepia">
+            Not you? Switch
+          </Link>
+        </p>
       </div>
       {current && <ActionBar payment={current} dock />}
     </main>
