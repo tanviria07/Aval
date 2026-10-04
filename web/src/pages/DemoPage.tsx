@@ -130,7 +130,7 @@ export function DemoPage() {
               <JoinQr name={momName} />
             </div>
           </div>
-          <Ledger logs={logs} />
+          <Ledger logs={logs} payments={payments} />
         </footer>
       </div>
     </main>
@@ -289,7 +289,7 @@ function BalanceTile({ label, cents, positive }: { label: string; cents?: number
   )
 }
 
-function Ledger({ logs, className = '' }: { logs: NessieLog[]; className?: string }) {
+function Ledger({ logs, payments, className = '' }: { logs: NessieLog[]; payments: Payment[]; className?: string }) {
   const rows = [...logs]
     .filter(log => log.method === 'POST' && log.path.includes('/transfers'))
     .sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? 1 : -1))
@@ -316,7 +316,7 @@ function Ledger({ logs, className = '' }: { logs: NessieLog[]; className?: strin
   return (
     <div className={`h-[240px] overflow-hidden bg-paper px-3 font-type text-[22px] text-ink ${className}`}>
       {rows.map(row => (
-        <LedgerLine key={row.id} log={row} fresh={fresh.includes(row.id)} />
+        <LedgerLine key={row.id} log={row} payments={payments} fresh={fresh.includes(row.id)} />
       ))}
     </div>
   )
@@ -339,27 +339,54 @@ function centsOf(log: NessieLog) {
 }
 
 function noteTransferId(note: string) {
-  const marker = ' · id '
-  const at = note.lastIndexOf(marker)
-  if (at < 0) return '—'
-  return shortTransferId(note.slice(at + marker.length).trim())
+  const id = rawTransferId(note)
+  return id ? shortTransferId(id) : '—'
 }
 
-function LedgerLine({ log, fresh }: { log: NessieLog; fresh: boolean }) {
+function rawTransferId(note: string) {
+  const marker = ' · id '
+  const at = note.lastIndexOf(marker)
+  if (at < 0) return ''
+  return note.slice(at + marker.length).trim()
+}
+
+function notePayee(note: string) {
+  const name = / · (.+?) · id /.exec(note)?.[1]?.trim()
+  return name || undefined
+}
+
+function payeeFor(log: NessieLog, payments: Payment[]) {
+  const named = notePayee(log.note)
+  if (named) return named
+  const id = rawTransferId(log.note)
+  if (id) {
+    const match = payments.find(payment => payment.transferId === id)
+    if (match?.payeeName) return match.payeeName
+  }
   const kind = kindOf(log)
   const cents = centsOf(log)
+  if (cents == null) return undefined
+  const wanted = kind === 'DIRECT' ? ['sent'] : kind === 'RELEASE' ? ['released'] : []
+  const matches = payments.filter(payment => payment.amountCents === cents && wanted.includes(payment.status) && payment.payeeName)
+  return matches.length === 1 ? matches[0].payeeName : undefined
+}
+
+function LedgerLine({ log, payments, fresh }: { log: NessieLog; payments: Payment[]; fresh: boolean }) {
+  const kind = kindOf(log)
+  const cents = centsOf(log)
+  const payee = payeeFor(log, payments)
   const route =
     kind === 'HOLD'
       ? 'Margaret → Aval Hold'
       : kind === 'RELEASE'
-        ? 'Aval Hold → payee'
+        ? `Aval Hold → ${payee ?? 'payee'}`
         : kind === 'REFUND'
           ? 'Aval Hold → Margaret'
           : kind === 'DIRECT'
-            ? 'Margaret → payee'
+            ? `Margaret → ${payee ?? 'payee'}`
             : 'Needs attention'
   const color =
-    kind === 'HOLD' ? 'text-stamp' : kind === 'RELEASE' ? 'text-blue' : kind === 'REFUND' ? 'text-sage-ink' : kind === 'DIRECT' ? 'text-sepia' : 'text-stamp'
+    kind === 'HOLD' ? 'text-stamp' : kind === 'RELEASE' ? 'text-blue' : kind === 'REFUND' ? 'text-sage-ink' : kind === 'DIRECT' ? 'text-sepia' : 'text-rose'
   return (
     <p className={`grid h-10 grid-cols-[150px_120px_180px_1fr_72px_150px] items-center gap-3 border-b border-dotted border-sepia/40 leading-10 ${fresh ? 'ledger-fresh' : ''}`}>
       <span className="text-sepia">{formatClock(log.at)}</span>

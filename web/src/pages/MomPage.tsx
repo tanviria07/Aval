@@ -38,6 +38,32 @@ function greeting(name: string) {
   return `${part}, ${name}`
 }
 
+function bankFailure(status?: number, source?: string) {
+  if (status === 429) return 'The bank is busy. Please try again.'
+  if (status === 408 || status === 504 || status === 0) return "The bank didn't respond. Please try again."
+  if (status) return `The bank returned status ${status}. Please try again.`
+  if (source) return `The bank didn't respond (${source}). Please try again.`
+  return "The bank didn't respond. Please try again."
+}
+
+function thrownReason(err: unknown) {
+  const raw =
+    err instanceof Error
+      ? err.message
+      : typeof err === 'string'
+        ? err
+        : err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string'
+          ? (err as { message: string }).message
+          : ''
+  const text = raw.trim()
+  if (!text) return "The bank didn't respond. Please try again."
+  if (/429|rate limit|too many requests/i.test(text)) return 'The bank is busy. Please try again.'
+  if (/timeout|timed out|deadline|didn't respond|did not respond|network|fetch failed/i.test(text)) {
+    return "The bank didn't respond. Please try again."
+  }
+  return text
+}
+
 function answered(payment: Payment) {
   return payment.secretFlag || Boolean(payment.paidBy)
 }
@@ -135,16 +161,22 @@ export function MomPage() {
     setSending(true)
     try {
       const raw = await computeRiskScore(payeeName, amountCents)
-      const result = JSON.parse(raw) as { error?: string; score?: number; held?: boolean }
+      const result = JSON.parse(raw) as { error?: string; score?: number; held?: boolean; status?: number; source?: string }
       if (result.error === 'insufficient_funds') {
-        const message = "The balance cannot cover this payment."
-        console.error('computeRiskScore', result.error)
+        const message = 'The balance cannot cover this payment.'
+        console.error('computeRiskScore', result)
+        setToast(message)
+        return
+      }
+      if (result.error === 'nessie_http') {
+        const message = bankFailure(result.status, result.source)
+        console.error('computeRiskScore', result)
         setToast(message)
         return
       }
       if (result.error || result.score == null || result.held == null) {
         const message = result.error || 'The bank did not return a risk score.'
-        console.error('computeRiskScore', message)
+        console.error('computeRiskScore', result)
         setToast(message)
         return
       }
@@ -154,7 +186,7 @@ export function MomPage() {
       setAmount('')
       setView('home')
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'The payment did not go through.'
+      const message = thrownReason(err)
       console.error('requestPayment reducer error', err)
       setToast(message)
     } finally {

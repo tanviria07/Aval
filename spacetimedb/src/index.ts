@@ -239,6 +239,21 @@ function logNessie(db: any, at: bigint, method: string, path: string, status: nu
   db.nessie_log.insert({ id: 0n, method, path: path.split('?')[0], status, note, at });
 }
 
+const TRANSFER_RETRY_MICROS = 2_000_000n;
+
+function transferRetryable(status: number, thrown: string): boolean {
+  if (status === 429 || status === 408 || status === 504 || status === 0) return true;
+  return /timeout|timed out|deadline|abort/i.test(thrown);
+}
+
+function transferRetried(db: any, paymentId: bigint, kind: string): boolean {
+  const note = `retry ${kind} ${paymentId}`;
+  for (const row of db.nessie_log.iter()) {
+    if (row.note === note) return true;
+  }
+  return false;
+}
+
 function audit(db: any, at: bigint, text: string) {
   db.audit_event.insert({ id: 0n, text, at });
 }
@@ -870,6 +885,7 @@ export const sendTransfer = spacetime.procedure(
         amountCents: row.amountCents,
         kind: arg.kind,
         paymentId: row.id,
+        payeeName: row.payeeName,
         fromBalance: balanceFor(tx.db, fromId),
         toBalance: balanceFor(tx.db, toId),
       };
@@ -885,7 +901,7 @@ export const sendTransfer = spacetime.procedure(
         const expected = expectedStatus(plan.kind);
         if (!row || row.status !== expected) return;
         tx.db.payment.id.update({ ...row, status: 'failed' });
-        logNessie(tx.db, at(), 'POST', path, 0, `${plan.kind} missing account`);
+        logNessie(tx.db, at(), 'POST', path, 0, `failed $${dollars(plan.amountCents)}`);
       });
       return {};
     }
@@ -893,21 +909,46 @@ export const sendTransfer = spacetime.procedure(
     // Live TransferCreate accepts transaction_date, status, amount, and description.
     // medium and payee_id are rejected, and the recorded transfer does not name a
     // counterparty, so the destination account id is carried in the description.
-    const res = nessieFetch(ctx, plan.base, plan.key, 'POST', path, {
-      transaction_date: new Date().toISOString().slice(0, 10),
-      status: 'completed',
-      amount: dollarNumber(plan.amountCents),
-      description: `Aval ${plan.kind} payment ${plan.paymentId} to ${plan.toId}`,
-    });
+    let thrown = '';
+    let res: { status: number; body: any };
+    try {
+      res = nessieFetch(ctx, plan.base, plan.key, 'POST', path, {
+        transaction_date: new Date().toISOString().slice(0, 10),
+        status: 'completed',
+        amount: dollarNumber(plan.amountCents),
+        description: `Aval ${plan.kind} payment ${plan.paymentId} to ${plan.toId}`,
+      });
+    } catch (err) {
+      thrown = err instanceof Error ? err.message : String(err);
+      res = { status: 0, body: undefined };
+    }
     const transferId = transferCreatedId(res.body);
     const ok = res.status >= 200 && res.status < 300 && !!transferId;
     if (!ok) {
+      const retry = transferRetryable(res.status, thrown);
       ctx.withTx(tx => {
         const row = tx.db.payment.id.find(plan.paymentId);
         const expected = expectedStatus(plan.kind);
         if (!row || row.status !== expected) return;
+        if (retry && !transferRetried(tx.db, plan.paymentId, plan.kind)) {
+          logNessie(
+            tx.db,
+            at(),
+            'POST',
+            `/payments/${plan.paymentId}/retry`,
+            res.status,
+            `retry ${plan.kind} ${plan.paymentId}`
+          );
+          tx.db.outbox.insert({
+            id: 0n,
+            paymentId: plan.paymentId,
+            kind: plan.kind,
+            scheduledAt: ScheduleAt.time(at() + TRANSFER_RETRY_MICROS),
+          });
+          return;
+        }
         tx.db.payment.id.update({ ...row, status: 'failed' });
-        logNessie(tx.db, at(), 'POST', path, res.status, `${plan.kind} failed`);
+        logNessie(tx.db, at(), 'POST', path, res.status, `failed $${dollars(plan.amountCents)}`);
       });
       return {};
     }
@@ -925,7 +966,14 @@ export const sendTransfer = spacetime.procedure(
       const done = finalStatus(plan.kind);
       if (!row || !expected || !done || row.status !== expected) return;
       const stamp = at();
-      logNessie(tx.db, stamp, 'POST', path, res.status, `${plan.kind} $${dollars(plan.amountCents)} · id ${transferId}`);
+      logNessie(
+        tx.db,
+        stamp,
+        'POST',
+        path,
+        res.status,
+        `${plan.kind} $${dollars(plan.amountCents)} · ${plan.payeeName} · id ${transferId}`
+      );
       logNessie(tx.db, stamp, 'GET', fromPath, fromRes.status, 'balance');
       logNessie(tx.db, stamp, 'GET', toPath, toRes.status, 'balance');
       const fromNext = movedBalance(plan.fromBalance, fromCents, -plan.amountCents);
