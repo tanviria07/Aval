@@ -11,6 +11,5 @@ import {
 } from "spacetimedb";
 
 export default {
-  dealId: __t.u64(),
-  tracking: __t.string(),
+  paymentId: __t.u64(),
 };

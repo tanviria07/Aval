@@ -11,5 +11,8 @@ import {
 } from "spacetimedb";
 
 export default {
-  paymentId: __t.u64(),
+  payeeName: __t.string(),
+  amountCents: __t.u64(),
+  score: __t.u32(),
+  reasonsJson: __t.string(),
 };

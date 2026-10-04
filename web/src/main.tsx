@@ -2,10 +2,10 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import './index.css'
-import { BuyerPage } from './pages/BuyerPage'
 import { DemoPage } from './pages/DemoPage'
+import { GuardianPage } from './pages/GuardianPage'
 import { JoinPage } from './pages/JoinPage'
-import { SellerPage } from './pages/SellerPage'
+import { MomPage } from './pages/MomPage'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -13,9 +13,11 @@ createRoot(document.getElementById('root')!).render(
       <Routes>
         <Route path="/" element={<Navigate to="/join" replace />} />
         <Route path="/join" element={<JoinPage />} />
-        <Route path="/seller" element={<SellerPage />} />
-        <Route path="/buyer" element={<BuyerPage />} />
+        <Route path="/mom" element={<MomPage />} />
+        <Route path="/guardian" element={<GuardianPage />} />
         <Route path="/demo" element={<DemoPage />} />
+        <Route path="/seller" element={<Navigate to="/mom" replace />} />
+        <Route path="/buyer" element={<Navigate to="/guardian" replace />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,

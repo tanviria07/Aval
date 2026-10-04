@@ -1,13 +1,16 @@
 import { ScheduleAt } from 'spacetimedb';
 import { schema, table, t, SenderError } from 'spacetimedb/server';
 
+const SEVEN_DAYS = 7n * 24n * 60n * 60n * 1_000_000n;
+const MARGARET = 'Margaret Chen';
+
 const member = table(
   { name: 'member', public: true },
   {
     identity: t.identity().primaryKey(),
     name: t.string(),
-    role: t.string(), // 'buyer' | 'seller'
-    slot: t.string(), // 'A' | 'B' | 'C' | 'D'
+    role: t.string(), // 'elder' | 'guardian'
+    slot: t.string(),
     online: t.bool(),
   }
 );
@@ -30,7 +33,7 @@ const listing = table(
     title: t.string(),
     emoji: t.string(),
     listCents: t.u64(),
-    status: t.string(), // 'open' | 'in_deal' | 'sold'
+    status: t.string(),
     createdAt: t.u64(),
   }
 );
@@ -41,43 +44,28 @@ const secret_limit = table(
     id: t.u64().primaryKey().autoInc(),
     ownerId: t.identity().index('btree'),
     dealOrListingId: t.u64().index('btree'),
-    kind: t.string(), // 'floor' | 'ceiling'
+    kind: t.string(),
     cents: t.u64(),
   }
 );
 
-const deal = table(
-  { name: 'deal', public: true },
+const payment = table(
+  { name: 'payment', public: true },
   {
     id: t.u64().primaryKey().autoInc(),
-    listingId: t.u64().index('btree'),
-    buyerId: t.identity(),
-    sellerId: t.identity(),
+    elderId: t.identity(),
+    payeeName: t.string(),
+    payeeNessieId: t.option(t.string()),
+    amountCents: t.u64(),
+    score: t.u32(),
+    reasonsJson: t.string(),
     status: t.string(),
-    round: t.u32(),
-    bidCents: t.u64(),
-    askCents: t.u64(),
-    priceCents: t.option(t.u64()),
-    buyerAccepted: t.bool(),
-    sellerAccepted: t.bool(),
-    shipByAt: t.option(t.u64()),
-    tracking: t.option(t.string()),
-    holdTransferId: t.option(t.string()),
-    releaseTransferId: t.option(t.string()),
-    refundTransferId: t.option(t.string()),
+    secretFlag: t.bool(),
+    paidBy: t.option(t.identity()),
+    pausedBy: t.option(t.identity()),
+    stoppedBy: t.option(t.string()),
+    transferId: t.option(t.string()),
     createdAt: t.u64(),
-  }
-);
-
-const message = table(
-  { name: 'message', public: true },
-  {
-    id: t.u64().primaryKey().autoInc(),
-    dealId: t.u64().index('btree'),
-    from: t.string(), // 'buyer_agent' | 'seller_agent' | 'system'
-    text: t.string(),
-    cents: t.option(t.u64()),
-    at: t.u64(),
   }
 );
 
@@ -114,26 +102,17 @@ const outbox = table(
   { name: 'outbox' },
   {
     id: t.u64().primaryKey().autoInc(),
-    dealId: t.u64(),
+    paymentId: t.u64(),
     kind: t.string(), // 'hold' | 'release' | 'refund'
     scheduledAt: t.scheduleAt(),
   }
 );
 
-const negotiation_tick = table(
-  { name: 'negotiation_tick' },
-  t.row('NegotiationTickRow', {
-    id: t.u64().primaryKey().autoInc(),
-    dealId: t.u64(),
-    scheduledAt: t.scheduleAt(),
-  })
-);
-
-const ship_timer = table(
-  { name: 'ship_timer' },
+const release_timer = table(
+  { name: 'release_timer' },
   {
     id: t.u64().primaryKey().autoInc(),
-    dealId: t.u64(),
+    paymentId: t.u64(),
     scheduledAt: t.scheduleAt(),
   }
 );
@@ -143,18 +122,20 @@ const spacetime = schema({
   account,
   listing,
   secret_limit,
-  deal,
-  message,
+  payment,
   nessie_log,
   audit_event,
   config,
   outbox,
-  negotiation_tick,
-  ship_timer,
+  release_timer,
 });
 
 function nowMicros(ctx: any): bigint {
   return ctx.timestamp.microsSinceUnixEpoch;
+}
+
+function senderHex(ctx: any): string {
+  return ctx.sender.toHexString();
 }
 
 function me(ctx: any) {
@@ -169,60 +150,116 @@ function requireRole(ctx: any, role: string) {
   return m;
 }
 
-function dollars(cents: bigint): string {
-  return `$${(Number(cents) / 100).toFixed(2)}`;
+function requireWorker(ctx: any) {
+  const row = ctx.db.config.key.find('worker_identity');
+  if (!row || row.value !== senderHex(ctx)) throw new SenderError('Worker only');
 }
 
-function findSecretLimit(ctx: any, ownerId: any, dealOrListingId: bigint, kind: string) {
-  for (const s of ctx.db.secret_limit.iter()) {
-    if (s.ownerId.equals(ownerId) && s.dealOrListingId === dealOrListingId && s.kind === kind) return s;
+function requireElderOwner(ctx: any, row: any) {
+  requireRole(ctx, 'elder');
+  if (!ctx.sender.equals(row.elderId)) throw new SenderError('Only the elder who created this payment can do that');
+}
+
+function dollars(cents: bigint): string {
+  return (Number(cents) / 100).toFixed(2);
+}
+
+function sameName(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+function asArray(body: any): any[] {
+  if (Array.isArray(body)) return body;
+  if (Array.isArray(body?.results)) return body.results;
+  return [];
+}
+
+function customerName(row: any): string {
+  return `${row?.first_name ?? row?.firstName ?? ''} ${row?.last_name ?? row?.lastName ?? ''}`.trim();
+}
+
+function objectId(body: any): string | undefined {
+  return body?.object_created?._id ?? body?.objectCreated?._id ?? body?._id;
+}
+
+function nessieConfig(db: any): { key: string; base: string } {
+  const keyRow = db.config.key.find('nessie_api_key');
+  if (!keyRow) throw new SenderError('Nessie API key not set');
+  const baseRow = db.config.key.find('nessie_base');
+  return { key: keyRow.value, base: baseRow?.value ?? 'https://api.nessieisreal.com' };
+}
+
+function logNessie(db: any, at: bigint, method: string, path: string, status: number, note: string) {
+  db.nessie_log.insert({ id: 0n, method, path, status, note, at });
+}
+
+function findPayeeAccount(db: any, row: any) {
+  if (row.payeeNessieId) {
+    for (const accountRow of db.account.iter()) {
+      if (accountRow.nessieAccountId === row.payeeNessieId) return accountRow;
+    }
+  }
+  for (const accountRow of db.account.iter()) {
+    if (sameName(accountRow.label, row.payeeName)) return accountRow;
   }
   return undefined;
 }
 
-function nextRound(
-  bidCents: bigint, askCents: bigint,
-  floorCents: bigint, ceilingCents: bigint
-): { bid: bigint; ask: bigint; crossed: boolean; price: bigint } {
-  const buyerGap = ceilingCents > bidCents ? ceilingCents - bidCents : 0n;
-  const newBid = bidCents + buyerGap / 4n;
-
-  const sellerGap = askCents > floorCents ? askCents - floorCents : 0n;
-  const newAsk = askCents - sellerGap / 4n;
-
-  const crossed = newBid >= newAsk;
-  const price = crossed ? (newBid + newAsk) / 2n : 0n;
-
-  return { bid: newBid, ask: newAsk, crossed, price };
-}
-
-function getNessieKey(ctx: any): string {
-  const row = ctx.db.config.key.find('nessie_api_key');
-  if (!row) throw new SenderError('Nessie API key not set');
-  return row.value;
-}
-
-function scheduleTick(ctx: any, dealId: bigint) {
-  ctx.db.negotiation_tick.insert({
+function applyPaymentHeld(db: any, at: bigint, paymentId: bigint, transferId: string) {
+  const row = db.payment.id.find(paymentId);
+  if (!row) throw new SenderError('Payment not found');
+  if (row.status !== 'cleared') throw new SenderError('Payment not cleared');
+  db.payment.id.update({ ...row, transferId });
+  db.release_timer.insert({
     id: 0n,
-    dealId,
-    scheduledAt: ScheduleAt.time(nowMicros(ctx) + 2_500_000n),
+    paymentId,
+    scheduledAt: ScheduleAt.time(at + SEVEN_DAYS),
   });
+  db.audit_event.insert({ id: 0n, text: `Payment held. Transfer ${transferId}.`, at });
 }
+
+function applyReleased(db: any, at: bigint, paymentId: bigint, transferId: string) {
+  const row = db.payment.id.find(paymentId);
+  if (!row) throw new SenderError('Payment not found');
+  if (row.status !== 'releasing') throw new SenderError('Payment not releasing');
+  db.payment.id.update({ ...row, status: 'released', transferId });
+  db.audit_event.insert({ id: 0n, text: `Released. Transfer ${transferId}.`, at });
+}
+
+function applyRefunded(db: any, at: bigint, paymentId: bigint, transferId: string) {
+  const row = db.payment.id.find(paymentId);
+  if (!row) throw new SenderError('Payment not found');
+  if (row.status !== 'refunding') throw new SenderError('Payment not refunding');
+  db.payment.id.update({ ...row, status: 'refunded', transferId });
+  db.audit_event.insert({ id: 0n, text: `Refunded. Transfer ${transferId}.`, at });
+}
+
+export const onConnect = spacetime.clientConnected(ctx => {
+  const row = ctx.db.member.identity.find(ctx.sender);
+  if (!row) return;
+  ctx.db.member.identity.update({ ...row, online: true });
+});
+
+export const onDisconnect = spacetime.clientDisconnected(ctx => {
+  const row = ctx.db.member.identity.find(ctx.sender);
+  if (!row) return;
+  ctx.db.member.identity.update({ ...row, online: false });
+});
 
 export const join = spacetime.reducer(
   { name: t.string(), role: t.string(), slot: t.string() },
   (ctx, { name, role, slot }) => {
+    if (role !== 'elder' && role !== 'guardian') throw new SenderError('Role must be elder or guardian');
     const existing = ctx.db.member.identity.find(ctx.sender);
     if (existing) {
-      ctx.db.member.identity.update({ ...existing, name, role, slot, online: true });
+      ctx.db.member.identity.update({ ...existing, name, role, slot });
     } else {
       ctx.db.member.insert({
         identity: ctx.sender,
         name,
         role,
         slot,
-        online: true,
+        online: false,
       });
     }
     ctx.db.audit_event.insert({
@@ -241,7 +278,7 @@ export const createListing = spacetime.reducer(
     floorCents: t.u64(),
   },
   (ctx, { title, emoji, listCents, floorCents }) => {
-    const seller = requireRole(ctx, 'seller');
+    const elder = requireRole(ctx, 'elder');
     const listingRow = ctx.db.listing.insert({
       id: 0n,
       sellerId: ctx.sender,
@@ -260,196 +297,201 @@ export const createListing = spacetime.reducer(
     });
     ctx.db.audit_event.insert({
       id: 0n,
-      text: `${seller.name} listed ${emoji} ${title} for ${dollars(listCents)}`,
+      text: `${elder.name} listed ${emoji} ${title} for $${dollars(listCents)}`,
       at: nowMicros(ctx),
     });
   }
 );
 
-export const startDeal = spacetime.reducer(
-  { listingId: t.u64(), ceilingCents: t.u64() },
-  (ctx, { listingId, ceilingCents }) => {
-    requireRole(ctx, 'buyer');
-    const listingRow = ctx.db.listing.id.find(listingId);
-    if (!listingRow) throw new SenderError('Listing not found');
-    if (listingRow.status !== 'open') {
-      throw new SenderError("Someone's already negotiating this.");
-    }
-    const floor = findSecretLimit(ctx, listingRow.sellerId, listingId, 'floor');
-    if (!floor) throw new SenderError('Seller floor not found');
-
-    const bidCents = listingRow.listCents * 7n / 10n;
-    const askCents = listingRow.listCents;
-    const created = ctx.db.deal.insert({
+export const requestPayment = spacetime.reducer(
+  {
+    payeeName: t.string(),
+    amountCents: t.u64(),
+    score: t.u32(),
+    reasonsJson: t.string(),
+  },
+  (ctx, { payeeName, amountCents, score, reasonsJson }) => {
+    requireRole(ctx, 'elder');
+    const payee = findPayeeAccount(ctx.db, { payeeName, payeeNessieId: undefined });
+    const held = score >= 60;
+    const created = ctx.db.payment.insert({
       id: 0n,
-      listingId,
-      buyerId: ctx.sender,
-      sellerId: listingRow.sellerId,
-      status: 'negotiating',
-      round: 0,
-      bidCents,
-      askCents,
-      priceCents: undefined,
-      buyerAccepted: false,
-      sellerAccepted: false,
-      shipByAt: undefined,
-      tracking: undefined,
-      holdTransferId: undefined,
-      releaseTransferId: undefined,
-      refundTransferId: undefined,
+      elderId: ctx.sender,
+      payeeName,
+      payeeNessieId: payee?.nessieAccountId,
+      amountCents,
+      score,
+      reasonsJson,
+      status: held ? 'held' : 'cleared',
+      secretFlag: false,
+      paidBy: undefined,
+      pausedBy: undefined,
+      stoppedBy: undefined,
+      transferId: undefined,
       createdAt: nowMicros(ctx),
     });
-    ctx.db.listing.id.update({ ...listingRow, status: 'in_deal' });
-    ctx.db.secret_limit.insert({
+    if (!held) {
+      ctx.db.outbox.insert({
+        id: 0n,
+        paymentId: created.id,
+        kind: 'hold',
+        scheduledAt: ScheduleAt.time(nowMicros(ctx)),
+      });
+    }
+    ctx.db.audit_event.insert({
       id: 0n,
-      ownerId: ctx.sender,
-      dealOrListingId: created.id,
-      kind: 'ceiling',
-      cents: ceilingCents,
+      text: held
+        ? `Payment to ${payeeName} held. Score ${score}.`
+        : `Payment to ${payeeName} cleared. Score ${score}.`,
+      at: nowMicros(ctx),
     });
-    const at = nowMicros(ctx);
-    ctx.db.message.insert({
-      id: 0n,
-      dealId: created.id,
-      from: 'seller_agent',
-      text: `Asking ${dollars(askCents)}.`,
-      cents: askCents,
-      at,
-    });
-    ctx.db.message.insert({
-      id: 0n,
-      dealId: created.id,
-      from: 'buyer_agent',
-      text: `Offering ${dollars(bidCents)}.`,
-      cents: bidCents,
-      at,
-    });
-    scheduleTick(ctx, created.id);
   }
 );
 
-export const accept = spacetime.reducer({ dealId: t.u64() }, (ctx, { dealId }) => {
-  const m = me(ctx);
-  const d = ctx.db.deal.id.find(dealId);
-  if (!d) throw new SenderError('Deal not found');
-  if (d.status !== 'agreed') throw new SenderError('Not ready for acceptance');
-  const isBuyer = ctx.sender.equals(d.buyerId);
-  const isSeller = ctx.sender.equals(d.sellerId);
-  if (!isBuyer && !isSeller) throw new SenderError('Not a party to this deal');
-  if (isBuyer && d.buyerAccepted) throw new SenderError('Already accepted');
-  if (isSeller && d.sellerAccepted) throw new SenderError('Already accepted');
-
-  const updated = {
-    ...d,
-    buyerAccepted: isBuyer ? true : d.buyerAccepted,
-    sellerAccepted: isSeller ? true : d.sellerAccepted,
-  };
-
-  if (updated.buyerAccepted && updated.sellerAccepted) {
-    ctx.db.deal.id.update({ ...updated, status: 'funding' });
-    ctx.db.outbox.insert({
-      id: 0n,
-      dealId,
-      kind: 'hold',
-      scheduledAt: ScheduleAt.time(nowMicros(ctx)),
-    });
-    ctx.db.audit_event.insert({
-      id: 0n,
-      text: `Both accepted. Escrow funding queued.`,
-      at: nowMicros(ctx),
-    });
-  } else {
-    ctx.db.deal.id.update(updated);
-    ctx.db.audit_event.insert({
-      id: 0n,
-      text: `${m.name} accepted.`,
-      at: nowMicros(ctx),
-    });
-  }
-});
-
-export const decline = spacetime.reducer({ dealId: t.u64() }, (ctx, { dealId }) => {
-  const d = ctx.db.deal.id.find(dealId);
-  if (!d) throw new SenderError('Deal not found');
-  if (!ctx.sender.equals(d.buyerId) && !ctx.sender.equals(d.sellerId)) {
-    throw new SenderError('Not a party to this deal');
-  }
-  if (!['negotiating', 'agreed', 'funding'].includes(d.status)) {
-    throw new SenderError('Deal cannot be declined now');
-  }
-  ctx.db.deal.id.update({ ...d, status: 'declined' });
-  if (d.status === 'agreed' || d.status === 'funding') {
-    const listing = ctx.db.listing.id.find(d.listingId);
-    if (listing) ctx.db.listing.id.update({ ...listing, status: 'open' });
-  }
+export const pausePayment = spacetime.reducer({ paymentId: t.u64() }, (ctx, { paymentId }) => {
+  const guardian = requireRole(ctx, 'guardian');
+  const row = ctx.db.payment.id.find(paymentId);
+  if (!row) throw new SenderError('Payment not found');
+  if (row.status !== 'held') throw new SenderError('Only a held payment can be paused');
+  ctx.db.payment.id.update({ ...row, status: 'paused', pausedBy: ctx.sender });
   ctx.db.audit_event.insert({
     id: 0n,
-    text: `Deal declined.`,
+    text: `${guardian.name} paused payment ${paymentId}.`,
     at: nowMicros(ctx),
   });
 });
 
-export const markShipped = spacetime.reducer(
-  { dealId: t.u64(), tracking: t.string() },
-  (ctx, { dealId, tracking }) => {
-    const d = ctx.db.deal.id.find(dealId);
-    if (!d) throw new SenderError('Deal not found');
-    if (!ctx.sender.equals(d.sellerId)) throw new SenderError('Only the seller can ship');
-    if (d.status !== 'escrowed') throw new SenderError('Not escrowed yet');
-    ctx.db.deal.id.update({ ...d, status: 'shipped', tracking });
+export const stopPayment = spacetime.reducer({ paymentId: t.u64() }, (ctx, { paymentId }) => {
+  const guardian = requireRole(ctx, 'guardian');
+  const row = ctx.db.payment.id.find(paymentId);
+  if (!row) throw new SenderError('Payment not found');
+  if (row.status !== 'held' && row.status !== 'paused') throw new SenderError('Payment cannot be stopped');
+  const hex = senderHex(ctx);
+  const prior = row.stoppedBy ? row.stoppedBy.split(',').filter(Boolean) : [];
+  if (!prior.includes(hex)) prior.push(hex);
+  const distinct = new Set(prior);
+  const stoppedBy = [...distinct].join(',');
+  if (distinct.size >= 2) {
+    ctx.db.payment.id.update({ ...row, status: 'stopped', stoppedBy });
     ctx.db.audit_event.insert({
       id: 0n,
-      text: `Shipped. Tracking: ${tracking}.`,
+      text: `Two guardians stopped payment ${paymentId}. No transfer.`,
+      at: nowMicros(ctx),
+    });
+  } else {
+    ctx.db.payment.id.update({ ...row, stoppedBy });
+    ctx.db.audit_event.insert({
+      id: 0n,
+      text: `${guardian.name} voted to stop payment ${paymentId}.`,
       at: nowMicros(ctx),
     });
   }
-);
+});
 
-export const confirmDelivery = spacetime.reducer({ dealId: t.u64() }, (ctx, { dealId }) => {
-  const d = ctx.db.deal.id.find(dealId);
-  if (!d) throw new SenderError('Deal not found');
-  if (!ctx.sender.equals(d.buyerId)) throw new SenderError('Only the buyer can confirm');
-  if (d.status !== 'shipped') throw new SenderError('Not shipped yet');
-  ctx.db.deal.id.update({ ...d, status: 'releasing' });
+export const confirmPayment = spacetime.reducer({ paymentId: t.u64() }, (ctx, { paymentId }) => {
+  const row = ctx.db.payment.id.find(paymentId);
+  if (!row) throw new SenderError('Payment not found');
+  requireElderOwner(ctx, row);
+  if (row.status !== 'held') throw new SenderError('Only a held payment can be confirmed');
+  ctx.db.payment.id.update({ ...row, paidBy: ctx.sender });
+  ctx.db.audit_event.insert({
+    id: 0n,
+    text: `Elder confirmed payment ${paymentId}.`,
+    at: nowMicros(ctx),
+  });
+});
+
+export const releasePayment = spacetime.reducer({ paymentId: t.u64() }, (ctx, { paymentId }) => {
+  const row = ctx.db.payment.id.find(paymentId);
+  if (!row) throw new SenderError('Payment not found');
+  requireElderOwner(ctx, row);
+  if (!row.paidBy || !row.paidBy.equals(ctx.sender)) throw new SenderError('Elder must confirm before release');
+  if (row.status !== 'held') throw new SenderError('Payment is not held');
+  ctx.db.payment.id.update({ ...row, status: 'releasing' });
   ctx.db.outbox.insert({
     id: 0n,
-    dealId,
+    paymentId,
     kind: 'release',
     scheduledAt: ScheduleAt.time(nowMicros(ctx)),
   });
   ctx.db.audit_event.insert({
     id: 0n,
-    text: `Delivery confirmed. Payout queued.`,
+    text: `Release queued for payment ${paymentId}.`,
     at: nowMicros(ctx),
   });
 });
 
+export const timeoutPayment = spacetime.reducer(
+  { onSchedule: release_timer },
+  { arg: release_timer.rowType },
+  (ctx, { arg }) => {
+    const row = ctx.db.payment.id.find(arg.paymentId);
+    if (!row) return;
+    if (row.status !== 'cleared') return;
+    ctx.db.payment.id.update({ ...row, status: 'refunding' });
+    ctx.db.outbox.insert({
+      id: 0n,
+      paymentId: arg.paymentId,
+      kind: 'refund',
+      scheduledAt: ScheduleAt.time(nowMicros(ctx)),
+    });
+    ctx.db.audit_event.insert({
+      id: 0n,
+      text: `Release window ended. Refund queued for payment ${arg.paymentId}.`,
+      at: nowMicros(ctx),
+    });
+  }
+);
+
+export const markPaymentHeld = spacetime.reducer(
+  { paymentId: t.u64(), transferId: t.string() },
+  (ctx, { paymentId, transferId }) => {
+    requireWorker(ctx);
+    applyPaymentHeld(ctx.db, nowMicros(ctx), paymentId, transferId);
+  }
+);
+
+export const markReleased = spacetime.reducer(
+  { paymentId: t.u64(), transferId: t.string() },
+  (ctx, { paymentId, transferId }) => {
+    requireWorker(ctx);
+    applyReleased(ctx.db, nowMicros(ctx), paymentId, transferId);
+  }
+);
+
+export const markRefunded = spacetime.reducer(
+  { paymentId: t.u64(), transferId: t.string() },
+  (ctx, { paymentId, transferId }) => {
+    requireWorker(ctx);
+    applyRefunded(ctx.db, nowMicros(ctx), paymentId, transferId);
+  }
+);
+
 export const demoReset = spacetime.reducer(ctx => {
-  for (const row of [...ctx.db.deal.iter()]) ctx.db.deal.id.delete(row.id);
-  for (const row of [...ctx.db.message.iter()]) ctx.db.message.id.delete(row.id);
+  requireRole(ctx, 'elder');
+  for (const row of [...ctx.db.payment.iter()]) ctx.db.payment.id.delete(row.id);
   for (const row of [...ctx.db.secret_limit.iter()]) ctx.db.secret_limit.id.delete(row.id);
   for (const row of [...ctx.db.nessie_log.iter()]) ctx.db.nessie_log.id.delete(row.id);
   for (const row of [...ctx.db.audit_event.iter()]) ctx.db.audit_event.id.delete(row.id);
   for (const row of [...ctx.db.outbox.iter()]) ctx.db.outbox.id.delete(row.id);
-  for (const row of [...ctx.db.negotiation_tick.iter()]) ctx.db.negotiation_tick.id.delete(row.id);
-  for (const row of [...ctx.db.ship_timer.iter()]) ctx.db.ship_timer.id.delete(row.id);
+  for (const row of [...ctx.db.release_timer.iter()]) ctx.db.release_timer.id.delete(row.id);
   for (const row of [...ctx.db.listing.iter()]) {
     ctx.db.listing.id.update({ ...row, status: 'open' });
   }
 });
 
-export const demoFastForward = spacetime.reducer({ dealId: t.u64() }, (ctx, { dealId }) => {
-  const d = ctx.db.deal.id.find(dealId);
-  if (!d) throw new SenderError('Deal not found');
-  if (d.status === 'escrowed') {
-    ctx.db.deal.id.update({ ...d, status: 'refunding' });
-    ctx.db.outbox.insert({
-      id: 0n,
-      dealId,
-      kind: 'refund',
-      scheduledAt: ScheduleAt.time(nowMicros(ctx)),
-    });
-  }
+export const demoFastForward = spacetime.reducer({ paymentId: t.u64() }, (ctx, { paymentId }) => {
+  requireRole(ctx, 'elder');
+  const row = ctx.db.payment.id.find(paymentId);
+  if (!row) throw new SenderError('Payment not found');
+  if (row.status !== 'cleared') return;
+  ctx.db.payment.id.update({ ...row, status: 'refunding' });
+  ctx.db.outbox.insert({
+    id: 0n,
+    paymentId,
+    kind: 'refund',
+    scheduledAt: ScheduleAt.time(nowMicros(ctx)),
+  });
 });
 
 export const setConfig = spacetime.reducer(
@@ -460,248 +502,104 @@ export const setConfig = spacetime.reducer(
   }
 );
 
-export const negotiationTick = spacetime.reducer(
-  { onSchedule: negotiation_tick },
-  { arg: negotiation_tick.rowType },
-  (ctx, { arg }) => {
-    const row = ctx.db.deal.id.find(arg.dealId);
-    if (!row || row.status !== 'negotiating') return;
-
-    const ceiling = findSecretLimit(ctx, row.buyerId, row.id, 'ceiling');
-    const floor = findSecretLimit(ctx, row.sellerId, row.listingId, 'floor');
-    if (!ceiling || !floor) {
-      ctx.db.deal.id.update({ ...row, status: 'no_deal' });
-      return;
-    }
-
-    const { bid, ask, crossed, price } = nextRound(
-      row.bidCents,
-      row.askCents,
-      floor.cents,
-      ceiling.cents
-    );
-    if (crossed) {
-      ctx.db.deal.id.update({
-        ...row,
-        status: 'agreed',
-        priceCents: price,
-        bidCents: bid,
-        askCents: ask,
-      });
-      ctx.db.message.insert({
-        id: 0n,
-        dealId: row.id,
-        from: 'system',
-        text: `Deal at ${dollars(price)}.`,
-        cents: price,
-        at: nowMicros(ctx),
-      });
-      return;
-    }
-
-    const round = row.round + 1;
-    if (round >= 8) {
-      ctx.db.deal.id.update({ ...row, status: 'no_deal', round });
-      return;
-    }
-    ctx.db.deal.id.update({
-      ...row,
-      bidCents: bid,
-      askCents: ask,
-      round,
-    });
-    const at = nowMicros(ctx);
-    ctx.db.message.insert({
-      id: 0n,
-      dealId: row.id,
-      from: 'seller_agent',
-      text: `Counter at ${dollars(ask)}.`,
-      cents: ask,
-      at,
-    });
-    ctx.db.message.insert({
-      id: 0n,
-      dealId: row.id,
-      from: 'buyer_agent',
-      text: `Counter at ${dollars(bid)}.`,
-      cents: bid,
-      at,
-    });
-    scheduleTick(ctx, row.id);
+function nessieFetch(ctx: any, base: string, key: string, method: string, path: string, body?: unknown) {
+  const url = `${base}${path}${path.includes('?') ? '&' : '?'}key=${key}`;
+  const res = ctx.http.fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  let parsed: any = undefined;
+  try {
+    parsed = res.json();
+  } catch {
+    parsed = undefined;
   }
-);
-
-export const shipTimeout = spacetime.reducer(
-  { onSchedule: ship_timer },
-  { arg: ship_timer.rowType },
-  (ctx, { arg }) => {
-    const d = ctx.db.deal.id.find(arg.dealId);
-    if (!d) return;
-    if (d.status !== 'escrowed') return;
-    ctx.db.deal.id.update({ ...d, status: 'refunding' });
-    ctx.db.outbox.insert({
-      id: 0n,
-      dealId: arg.dealId,
-      kind: 'refund',
-      scheduledAt: ScheduleAt.time(nowMicros(ctx)),
-    });
-    ctx.db.audit_event.insert({
-      id: 0n,
-      text: `Ship deadline missed. Refund queued.`,
-      at: nowMicros(ctx),
-    });
-  }
-);
-
-export const markPaymentHeld = spacetime.reducer(
-  { dealId: t.u64(), transferId: t.string() },
-  (ctx, { dealId, transferId }) => {
-    const d = ctx.db.deal.id.find(dealId);
-    if (!d) throw new SenderError('Deal not found');
-    if (d.status !== 'funding') throw new SenderError('Deal not awaiting payment');
-    const shipBy = nowMicros(ctx) + 7n * 24n * 60n * 60n * 1_000_000n;
-    ctx.db.deal.id.update({
-      ...d,
-      status: 'escrowed',
-      holdTransferId: transferId,
-      shipByAt: shipBy,
-    });
-    ctx.db.ship_timer.insert({
-      id: 0n,
-      dealId,
-      scheduledAt: ScheduleAt.time(shipBy),
-    });
-    ctx.db.audit_event.insert({
-      id: 0n,
-      text: `Escrow held. Transfer ${transferId}.`,
-      at: nowMicros(ctx),
-    });
-  }
-);
-
-export const markReleased = spacetime.reducer(
-  { dealId: t.u64(), transferId: t.string() },
-  (ctx, { dealId, transferId }) => {
-    const d = ctx.db.deal.id.find(dealId);
-    if (!d) throw new SenderError('Deal not found');
-    if (d.status !== 'releasing') throw new SenderError('Deal not in releasing state');
-    ctx.db.deal.id.update({
-      ...d,
-      status: 'released',
-      releaseTransferId: transferId,
-    });
-    ctx.db.audit_event.insert({
-      id: 0n,
-      text: `Released. Transfer ${transferId}.`,
-      at: nowMicros(ctx),
-    });
-  }
-);
-
-export const markRefunded = spacetime.reducer(
-  { dealId: t.u64(), transferId: t.string() },
-  (ctx, { dealId, transferId }) => {
-    const d = ctx.db.deal.id.find(dealId);
-    if (!d) throw new SenderError('Deal not found');
-    if (d.status !== 'refunding') throw new SenderError('Deal not in refunding state');
-    ctx.db.deal.id.update({
-      ...d,
-      status: 'refunded',
-      refundTransferId: transferId,
-    });
-    ctx.db.audit_event.insert({
-      id: 0n,
-      text: `Refunded. Transfer ${transferId}.`,
-      at: nowMicros(ctx),
-    });
-  }
-);
+  return { status: Number(res.status), body: parsed };
+}
 
 export const seedBank = spacetime.procedure(t.unit(), ctx => {
-  const key = ctx.withTx(tx => {
-    const row = tx.db.config.key.find('nessie_api_key');
-    if (!row) throw new SenderError('Nessie API key not set');
-    return row.value;
-  });
-
-  const base = ctx.withTx(tx => {
-    const row = tx.db.config.key.find('nessie_base');
-    return row?.value ?? 'https://api.nessieisreal.com';
-  });
-
+  const { key, base } = ctx.withTx(tx => nessieConfig(tx.db));
+  const today = new Date().toISOString().slice(0, 10);
   const slots = [
-    { slot: 'A', first: 'Mateo', last: 'Alvarez', label: 'Seller', start: 0 },
-    { slot: 'B', first: 'Judge', last: 'A', label: 'Buyer A', start: 166000 },
-    { slot: 'C', first: 'Judge', last: 'B', label: 'Buyer B', start: 166000 },
-    { slot: 'D', first: 'Spare', last: 'Buyer', label: 'Spare Buyer', start: 166000 },
-    { slot: 'ESCROW', first: 'Aval', last: 'Escrow', label: 'Escrow', start: 0 },
+    { slot: 'MARGARET', first: 'Margaret', last: 'Chen', label: MARGARET, start: 166000 },
+    { slot: 'PALO_ALTO_ELECTRIC', first: 'Palo Alto', last: 'Electric', label: 'Palo Alto Electric', start: 0 },
+    { slot: 'DANIEL', first: 'Daniel', last: 'Chen', label: 'Daniel Chen', start: 0 },
   ];
 
+  let margaretAccountId = '';
+
   for (const s of slots) {
-    const customerRes = ctx.http.fetch(`${base}/customers?key=${key}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        first_name: s.first,
-        last_name: s.last,
-        address: {
-          street_number: '1',
-          street_name: 'Main St',
-          city: 'Ann Arbor',
-          state: 'MI',
-          zip: '48104',
-        },
-      }),
+    const customerRes = nessieFetch(ctx, base, key, 'POST', '/customers', {
+      first_name: s.first,
+      last_name: s.last,
+      address: {
+        street_number: '1',
+        street_name: 'Main St',
+        city: 'Ann Arbor',
+        state: 'MI',
+        zip: '48104',
+      },
     });
-    const customerBody = customerRes.json();
-    const customerId = customerBody?.object_created?._id ?? customerBody?.objectCreated?._id;
+    const customerId = objectId(customerRes.body);
+    ctx.withTx(tx => {
+      logNessie(tx.db, ctx.timestamp.microsSinceUnixEpoch, 'POST', '/customers', customerRes.status, `${s.label} customer`);
+    });
     if (!customerId) continue;
 
-    const accountRes = ctx.http.fetch(`${base}/customers/${customerId}/accounts?key=${key}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'Checking',
-        nickname: `${s.label} account`,
-        rewards: 0,
-        balance: s.start / 100,
-      }),
+    const accountRes = nessieFetch(ctx, base, key, 'POST', `/customers/${customerId}/accounts`, {
+      type: 'Checking',
+      nickname: `${s.label} checking`,
+      rewards: 0,
+      balance: s.start / 100,
     });
-    const accountBody = accountRes.json();
-    const nessieAccountId = accountBody?.object_created?._id ?? accountBody?.objectCreated?._id;
+    const nessieAccountId = objectId(accountRes.body) ?? '';
+    if (s.slot === 'MARGARET') margaretAccountId = nessieAccountId;
 
     ctx.withTx(tx => {
       const existing = tx.db.account.slot.find(s.slot);
-      if (existing) {
-        tx.db.account.slot.update({
-          slot: s.slot,
-          label: s.label,
-          nessieAccountId: nessieAccountId ?? '',
-          balanceCents: BigInt(s.start),
-        });
-      } else {
-        tx.db.account.insert({
-          slot: s.slot,
-          label: s.label,
-          nessieAccountId: nessieAccountId ?? '',
-          balanceCents: BigInt(s.start),
-        });
-      }
-      tx.db.nessie_log.insert({
-        id: 0n,
-        method: 'POST',
-        path: `/customers/${customerId}/accounts`,
-        status: accountRes.status,
-        note: `${s.label} seeded`,
-        at: ctx.timestamp.microsSinceUnixEpoch,
-      });
+      const next = {
+        slot: s.slot,
+        label: s.label,
+        nessieAccountId,
+        balanceCents: BigInt(s.start),
+      };
+      if (existing) tx.db.account.slot.update(next);
+      else tx.db.account.insert(next);
+      logNessie(
+        tx.db,
+        ctx.timestamp.microsSinceUnixEpoch,
+        'POST',
+        `/customers/${customerId}/accounts`,
+        accountRes.status,
+        `${s.label} checking`
+      );
+    });
+  }
+
+  if (margaretAccountId) {
+    const billPath = `/accounts/${margaretAccountId}/bills`;
+    const billRes = nessieFetch(ctx, base, key, 'POST', billPath, {
+      payee: 'Palo Alto Electric',
+      payment_amount: 145,
+      payment_date: today,
+      recurring_date: 15,
+      status: 'recurring',
+    });
+    ctx.withTx(tx => {
+      logNessie(tx.db, ctx.timestamp.microsSinceUnixEpoch, 'POST', billPath, billRes.status, 'Margaret recurring bill');
     });
   }
 
   ctx.withTx(tx => {
+    for (const row of [...tx.db.account.iter()]) {
+      if (row.slot !== 'MARGARET' && row.slot !== 'PALO_ALTO_ELECTRIC' && row.slot !== 'DANIEL') {
+        tx.db.account.slot.delete(row.slot);
+      }
+    }
     tx.db.audit_event.insert({
       id: 0n,
-      text: 'Bank seeded. 5 accounts created.',
+      text: 'Bank seeded. 3 customers and 1 bill.',
       at: ctx.timestamp.microsSinceUnixEpoch,
     });
   });
@@ -715,103 +613,74 @@ export const sendTransfer = spacetime.procedure(
   t.unit(),
   (ctx, { arg }) => {
     const data = ctx.withTx(tx => {
-      const keyRow = tx.db.config.key.find('nessie_api_key');
-      const baseRow = tx.db.config.key.find('nessie_base');
-      const d = tx.db.deal.id.find(arg.dealId);
-      const escrow = tx.db.account.slot.find('ESCROW');
-      let buyerSlot: string | undefined;
-      let sellerSlot: string | undefined;
-      if (d) {
-        const buyerM = tx.db.member.identity.find(d.buyerId);
-        const sellerM = tx.db.member.identity.find(d.sellerId);
-        buyerSlot = buyerM?.slot;
-        sellerSlot = sellerM?.slot;
+      let key = '';
+      let base = 'https://api.nessieisreal.com';
+      try {
+        const cfg = nessieConfig(tx.db);
+        key = cfg.key;
+        base = cfg.base;
+      } catch {
+        key = '';
       }
-      return {
-        key: keyRow?.value,
-        base: baseRow?.value ?? 'https://api.nessieisreal.com',
-        deal: d,
-        escrow,
-        buyerSlot,
-        sellerSlot,
-      };
+      const row = tx.db.payment.id.find(arg.paymentId);
+      const buyer = tx.db.account.slot.find('MARGARET');
+      const payee = row ? findPayeeAccount(tx.db, row) : undefined;
+      return { key, base, row, buyer, payee };
     });
 
-    if (!data.key || !data.deal || !data.escrow) {
+    if (!data.key || !data.row || !data.buyer || !data.payee) {
       ctx.withTx(tx => {
-        tx.db.nessie_log.insert({
-          id: 0n,
-          method: 'SKIP',
-          path: `outbox ${arg.kind} deal ${arg.dealId}`,
-          status: 0,
-          note: 'Missing deal, escrow, or key',
-          at: ctx.timestamp.microsSinceUnixEpoch,
-        });
+        logNessie(
+          tx.db,
+          ctx.timestamp.microsSinceUnixEpoch,
+          'SKIP',
+          `outbox ${arg.kind} payment ${arg.paymentId}`,
+          0,
+          'Missing payment, Margaret, payee, or key'
+        );
       });
       return {};
     }
 
-    const sourceSlot = arg.kind === 'hold' ? data.buyerSlot : 'ESCROW';
-    const destSlot = arg.kind === 'hold' ? 'ESCROW' : arg.kind === 'release' ? data.sellerSlot : data.buyerSlot;
+    const forward = arg.kind === 'hold' || arg.kind === 'release';
+    const source = forward ? data.buyer : data.payee;
+    const dest = forward ? data.payee : data.buyer;
+    const amountCents = data.row.amountCents;
+    const path = `/accounts/${source.nessieAccountId}/transfers`;
+    const res = nessieFetch(ctx, data.base, data.key, 'POST', path, {
+      transaction_date: new Date().toISOString().slice(0, 10),
+      status: 'completed',
+      amount: Number(amountCents) / 100,
+      description: `Aval ${arg.kind} payment ${arg.paymentId}`,
+      payee_id: dest.nessieAccountId,
+    });
 
-    if (sourceSlot === undefined || destSlot === undefined) {
+    if (res.status < 200 || res.status >= 300) {
       ctx.withTx(tx => {
-        tx.db.nessie_log.insert({
-          id: 0n,
-          method: 'SKIP',
-          path: `outbox ${arg.kind} deal ${arg.dealId}`,
-          status: 0,
-          note: 'Missing buyer or seller slot',
-          at: ctx.timestamp.microsSinceUnixEpoch,
-        });
+        logNessie(
+          tx.db,
+          ctx.timestamp.microsSinceUnixEpoch,
+          'POST',
+          path,
+          res.status,
+          `${arg.kind} rejected`
+        );
       });
       return {};
     }
 
-    const source = ctx.withTx(tx => tx.db.account.slot.find(sourceSlot));
-    const dest = ctx.withTx(tx => tx.db.account.slot.find(destSlot));
-
-    if (!source) {
+    const transferId = objectId(res.body) ?? '';
+    if (!transferId) {
       ctx.withTx(tx => {
-        tx.db.nessie_log.insert({
-          id: 0n,
-          method: 'SKIP',
-          path: `no source ${sourceSlot}`,
-          status: 0,
-          note: 'Source account missing',
-          at: ctx.timestamp.microsSinceUnixEpoch,
-        });
+        logNessie(tx.db, ctx.timestamp.microsSinceUnixEpoch, 'POST', path, res.status, `${arg.kind} missing transfer id`);
       });
       return {};
     }
-
-    const amountCents = data.deal.priceCents ?? 0n;
-    const amountDollars = Number(amountCents) / 100;
-
-    const res = ctx.http.fetch(
-      `${data.base}/accounts/${source.nessieAccountId}/transfers?key=${data.key}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transaction_date: new Date().toISOString().split('T')[0],
-          status: 'completed',
-          amount: amountDollars,
-          description: `Aval ${arg.kind} deal ${arg.dealId}`,
-        }),
-      }
-    );
-
-    const body = res.json();
-    const transferId =
-      body?.object_created?._id ??
-      body?.objectCreated?._id ??
-      `txn_${Date.now()}`;
 
     ctx.withTx(tx => {
-      const currentSource = tx.db.account.slot.find(sourceSlot);
-      const currentDest = tx.db.account.slot.find(destSlot);
-
+      const at = ctx.timestamp.microsSinceUnixEpoch;
+      const currentSource = tx.db.account.slot.find(source.slot);
+      const currentDest = tx.db.account.slot.find(dest.slot);
       if (currentSource) {
         tx.db.account.slot.update({
           ...currentSource,
@@ -824,56 +693,195 @@ export const sendTransfer = spacetime.procedure(
           balanceCents: currentDest.balanceCents + amountCents,
         });
       }
-
-      tx.db.nessie_log.insert({
-        id: 0n,
-        method: 'POST',
-        path: `/accounts/${source.nessieAccountId}/transfers`,
-        status: res.status,
-        note: `${arg.kind} $${amountDollars.toFixed(2)} ${sourceSlot} to ${destSlot}`,
-        at: ctx.timestamp.microsSinceUnixEpoch,
-      });
-
-      const d = tx.db.deal.id.find(arg.dealId);
-      if (d) {
-        if (arg.kind === 'hold') {
-          const shipBy = ctx.timestamp.microsSinceUnixEpoch + 7n * 24n * 60n * 60n * 1_000_000n;
-          tx.db.deal.id.update({
-            ...d,
-            status: 'escrowed',
-            holdTransferId: transferId,
-            shipByAt: shipBy,
-          });
-          tx.db.ship_timer.insert({
-            id: 0n,
-            dealId: arg.dealId,
-            scheduledAt: ScheduleAt.time(shipBy),
-          });
-        } else if (arg.kind === 'release') {
-          tx.db.deal.id.update({
-            ...d,
-            status: 'released',
-            releaseTransferId: transferId,
-          });
-        } else if (arg.kind === 'refund') {
-          tx.db.deal.id.update({
-            ...d,
-            status: 'refunded',
-            refundTransferId: transferId,
-          });
-        }
-      }
-
-      tx.db.audit_event.insert({
-        id: 0n,
-        text: `${arg.kind} complete. Transfer ${transferId}.`,
-        at: ctx.timestamp.microsSinceUnixEpoch,
-      });
+      logNessie(
+        tx.db,
+        at,
+        'POST',
+        path,
+        res.status,
+        `${arg.kind} $${dollars(amountCents)} ${source.slot} to ${dest.slot}`
+      );
+      if (arg.kind === 'hold') applyPaymentHeld(tx.db, at, arg.paymentId, transferId);
+      else if (arg.kind === 'release') applyReleased(tx.db, at, arg.paymentId, transferId);
+      else if (arg.kind === 'refund') applyRefunded(tx.db, at, arg.paymentId, transferId);
     });
 
     return {};
   }
 );
+
+function pushReason(reasons: any[], code: string, text: string, points: number, source: string, score: number) {
+  reasons.push({ code, text, points, source });
+  return score + points;
+}
+
+export const computeRiskScore = spacetime.procedure(
+  { payeeName: t.string(), amountCents: t.u64() },
+  t.string(),
+  (ctx, { payeeName, amountCents }) => {
+    const { key, base } = ctx.withTx(tx => nessieConfig(tx.db));
+    const at = () => ctx.timestamp.microsSinceUnixEpoch;
+    const reasons: { code: string; text: string; points: number; source: string }[] = [];
+    let score = 0;
+
+    const customersPath = 'GET /customers';
+    const customersRes = nessieFetch(ctx, base, key, 'GET', '/customers');
+    ctx.withTx(tx => logNessie(tx.db, at(), 'GET', '/customers', customersRes.status, 'customers'));
+    if (customersRes.status < 200 || customersRes.status >= 300) {
+      return JSON.stringify({ error: 'nessie_http', source: customersPath, status: customersRes.status });
+    }
+
+    const customers = asArray(customersRes.body);
+    const payee = customers.find(row => sameName(customerName(row), payeeName));
+    const margaret = customers.find(row => sameName(customerName(row), MARGARET));
+    const payeeId = payee?._id ?? payee?.id;
+
+    if (!payee || !payeeId) {
+      score = pushReason(reasons, 'payee_not_registered', 'Payee is not a registered merchant', 40, customersPath, score);
+    } else {
+      const accountsPath = `GET /customers/${payeeId}/accounts`;
+      const accountsRes = nessieFetch(ctx, base, key, 'GET', `/customers/${payeeId}/accounts`);
+      ctx.withTx(tx => logNessie(tx.db, at(), 'GET', `/customers/${payeeId}/accounts`, accountsRes.status, 'payee accounts'));
+      if (accountsRes.status < 200 || accountsRes.status >= 300) {
+        return JSON.stringify({ error: 'nessie_http', source: accountsPath, status: accountsRes.status });
+      }
+      const accounts = asArray(accountsRes.body);
+      if (accounts.length === 0) {
+        score = pushReason(reasons, 'payee_no_accounts', 'Payee has no active accounts', 30, accountsPath, score);
+      } else {
+        const accountId = accounts[0]._id ?? accounts[0].id;
+        const transfersPath = `GET /accounts/${accountId}/transfers`;
+        const transfersRes = nessieFetch(ctx, base, key, 'GET', `/accounts/${accountId}/transfers`);
+        ctx.withTx(tx => logNessie(tx.db, at(), 'GET', `/accounts/${accountId}/transfers`, transfersRes.status, 'payee transfers'));
+        if (transfersRes.status < 200 || transfersRes.status >= 300) {
+          return JSON.stringify({ error: 'nessie_http', source: transfersPath, status: transfersRes.status });
+        }
+        const count = asArray(transfersRes.body).length;
+        if (count === 0) {
+          score = pushReason(
+            reasons,
+            'no_transfers',
+            'Payee has never received a transfer from anyone',
+            30,
+            transfersPath,
+            score
+          );
+        } else if (count < 4) {
+          score = pushReason(
+            reasons,
+            'few_transfers',
+            `Payee has only received ${count} transfers`,
+            15,
+            transfersPath,
+            score
+          );
+        } else if (count >= 50) {
+          score = pushReason(
+            reasons,
+            'established_merchant',
+            `Established merchant (${count} transfers)`,
+            -20,
+            transfersPath,
+            score
+          );
+        }
+
+        const accountPath = `GET /accounts/${accountId}`;
+        const accountRes = nessieFetch(ctx, base, key, 'GET', `/accounts/${accountId}`);
+        ctx.withTx(tx => logNessie(tx.db, at(), 'GET', `/accounts/${accountId}`, accountRes.status, 'payee balance'));
+        if (accountRes.status < 200 || accountRes.status >= 300) {
+          return JSON.stringify({ error: 'nessie_http', source: accountPath, status: accountRes.status });
+        }
+        const balance = Number(accountRes.body?.balance ?? 0);
+        if (balance === 0) {
+          score = pushReason(reasons, 'zero_balance', 'Payee has never held a balance', 20, accountPath, score);
+        }
+      }
+    }
+
+    const margaretId = margaret?._id ?? margaret?.id;
+    if (!margaretId) {
+      return JSON.stringify({ error: 'insufficient_funds' });
+    }
+
+    const margaretAccountsPath = `GET /customers/${margaretId}/accounts`;
+    const margaretAccountsRes = nessieFetch(ctx, base, key, 'GET', `/customers/${margaretId}/accounts`);
+    ctx.withTx(tx => logNessie(tx.db, at(), 'GET', `/customers/${margaretId}/accounts`, margaretAccountsRes.status, 'Margaret accounts'));
+    if (margaretAccountsRes.status < 200 || margaretAccountsRes.status >= 300) {
+      return JSON.stringify({ error: 'nessie_http', source: margaretAccountsPath, status: margaretAccountsRes.status });
+    }
+    const margaretAccounts = asArray(margaretAccountsRes.body);
+    const margaretAccountId = margaretAccounts[0]?._id ?? margaretAccounts[0]?.id;
+    if (!margaretAccountId) {
+      return JSON.stringify({ error: 'insufficient_funds' });
+    }
+
+    const billsPath = `GET /accounts/${margaretAccountId}/bills`;
+    const billsRes = nessieFetch(ctx, base, key, 'GET', `/accounts/${margaretAccountId}/bills`);
+    ctx.withTx(tx => logNessie(tx.db, at(), 'GET', `/accounts/${margaretAccountId}/bills`, billsRes.status, 'Margaret bills'));
+    if (billsRes.status < 200 || billsRes.status >= 300) {
+      return JSON.stringify({ error: 'nessie_http', source: billsPath, status: billsRes.status });
+    }
+    const known = asArray(billsRes.body).some(bill => sameName(String(bill?.payee ?? ''), payeeName));
+    if (known) {
+      score = pushReason(reasons, 'known_biller', 'Known monthly biller', -40, billsPath, score);
+    }
+
+    const margaretPath = `GET /accounts/${margaretAccountId}`;
+    const margaretRes = nessieFetch(ctx, base, key, 'GET', `/accounts/${margaretAccountId}`);
+    ctx.withTx(tx => logNessie(tx.db, at(), 'GET', `/accounts/${margaretAccountId}`, margaretRes.status, 'Margaret balance'));
+    if (margaretRes.status < 200 || margaretRes.status >= 300) {
+      return JSON.stringify({ error: 'nessie_http', source: margaretPath, status: margaretRes.status });
+    }
+    const margaretCents = Math.round(Number(margaretRes.body?.balance ?? 0) * 100);
+    if (margaretCents < Number(amountCents)) {
+      return JSON.stringify({ error: 'insufficient_funds' });
+    }
+
+    return JSON.stringify({ score, held: score >= 60, reasons });
+  }
+);
+
+export const fetchMomAccount = spacetime.procedure(t.string(), ctx => {
+  const { key, base } = ctx.withTx(tx => nessieConfig(tx.db));
+  const customersRes = nessieFetch(ctx, base, key, 'GET', '/customers');
+  ctx.withTx(tx => logNessie(tx.db, ctx.timestamp.microsSinceUnixEpoch, 'GET', '/customers', customersRes.status, 'mom customers'));
+  if (customersRes.status < 200 || customersRes.status >= 300) {
+    return JSON.stringify({ error: 'nessie_http', source: 'GET /customers', status: customersRes.status });
+  }
+  const customers = asArray(customersRes.body).map(row => ({
+    id: row._id ?? row.id ?? '',
+    name: customerName(row),
+  }));
+  const margaret = asArray(customersRes.body).find(row => sameName(customerName(row), MARGARET));
+  const margaretId = margaret?._id ?? margaret?.id;
+  if (!margaretId) {
+    return JSON.stringify({ balanceCents: 0, bills: [], customers });
+  }
+  const accountsRes = nessieFetch(ctx, base, key, 'GET', `/customers/${margaretId}/accounts`);
+  ctx.withTx(tx => {
+    logNessie(tx.db, ctx.timestamp.microsSinceUnixEpoch, 'GET', `/customers/${margaretId}/accounts`, accountsRes.status, 'mom accounts');
+  });
+  const accountId = asArray(accountsRes.body)[0]?._id ?? asArray(accountsRes.body)[0]?.id;
+  if (!accountId) {
+    return JSON.stringify({ balanceCents: 0, bills: [], customers });
+  }
+  const accountRes = nessieFetch(ctx, base, key, 'GET', `/accounts/${accountId}`);
+  const billsRes = nessieFetch(ctx, base, key, 'GET', `/accounts/${accountId}/bills`);
+  ctx.withTx(tx => {
+    const at = ctx.timestamp.microsSinceUnixEpoch;
+    logNessie(tx.db, at, 'GET', `/accounts/${accountId}`, accountRes.status, 'mom balance');
+    logNessie(tx.db, at, 'GET', `/accounts/${accountId}/bills`, billsRes.status, 'mom bills');
+  });
+  const bills = asArray(billsRes.body).map(bill => ({
+    payee: bill.payee ?? '',
+    paymentAmount: Number(bill.payment_amount ?? bill.paymentAmount ?? 0),
+    status: bill.status ?? '',
+    paymentDate: bill.payment_date ?? bill.paymentDate ?? '',
+  }));
+  const balanceCents = Math.round(Number(accountRes.body?.balance ?? 0) * 100);
+  return JSON.stringify({ balanceCents, bills, customers });
+});
 
 export const my_limits = spacetime.view(
   { name: 'my_limits', public: true },
@@ -881,9 +889,7 @@ export const my_limits = spacetime.view(
   ctx => {
     const out: { kind: string; cents: bigint }[] = [];
     for (const row of ctx.db.secret_limit.iter()) {
-      if (row.ownerId.equals(ctx.sender)) {
-        out.push({ kind: row.kind, cents: row.cents });
-      }
+      if (row.ownerId.equals(ctx.sender)) out.push({ kind: row.kind, cents: row.cents });
     }
     return out;
   }

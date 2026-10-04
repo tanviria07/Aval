@@ -1,121 +1,93 @@
-import { AgentChatBubble } from '../components/AgentChatBubble'
-import { AvaTile } from '../components/AvaTile'
-import { CaptionBar } from '../components/CaptionBar'
-import { ConvergenceBar } from '../components/ConvergenceBar'
-import { DealTracker } from '../components/DealTracker'
-import { MoneyFlowStrip } from '../components/MoneyFlowStrip'
+import { useEffect, useState } from 'react'
+import { ReasonList } from '../components/ReasonList'
 import { NessieLogRow } from '../components/NessieLogRow'
-import { QrJoinCard } from '../components/QrJoinCard'
-import { VaultCard } from '../components/VaultCard'
-import { mockAccounts, mockListings, mockMembers, mockMessages, mockNessieLog, type DealStatus } from '../data'
+import {
+  fetchMomAccount,
+  onMembers,
+  onNessieLog,
+  onPayments,
+  pausePayment,
+  stopPayment,
+  type MomAccount,
+  useRows,
+} from '../data'
 import { formatCents } from '../format'
-import { useLive } from '../liveDeal'
-
-const CAPTIONS: Record<DealStatus, string> = {
-  negotiating: 'Agents are negotiating inside the vault. Limits stay sealed.',
-  agreed: 'Both sides agreed. A human still has to accept before money moves.',
-  funding: 'Funds are moving from the buyer into escrow.',
-  escrowed: 'The vault is holding the money until delivery is confirmed.',
-  shipped: 'It shipped. The buyer confirms delivery, then the seller is paid.',
-  releasing: 'Releasing the escrow to the seller.',
-  released: 'Paid. The seller has the money.',
-  refunding: 'Sending the money back to the buyer.',
-  refunded: 'Refunded. The deal is closed.',
-  no_deal: 'No deal. The vault stayed shut.',
-  declined: 'Declined. Nothing moved.',
-}
-
-function moneyStep(status: DealStatus): 1 | 2 | 3 {
-  if (status === 'releasing' || status === 'released') return 3
-  if (status === 'funding' || status === 'escrowed' || status === 'shipped' || status === 'refunding') return 2
-  return 1
-}
 
 export function DemoPage() {
-  const { deal } = useLive()
-  const listing = mockListings.find((item) => item.id === deal.listingId)
-  const messages = mockMessages.filter((message) => message.dealId === deal.id)
-  const speaking = !['released', 'refunded', 'declined', 'no_deal'].includes(deal.status)
-  const heldCents = deal.priceCents ?? deal.askCents
+  const members = useRows(onMembers)
+  const payments = useRows(onPayments)
+  const logs = useRows(onNessieLog)
+  const [account, setAccount] = useState<MomAccount | null>(null)
+  const held = [...payments].filter(payment => payment.status === 'held').sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? 1 : -1))[0]
+  const guardians = members.filter(member => member.role === 'guardian')
+
+  useEffect(() => {
+    fetchMomAccount().then(setAccount).catch(() => setAccount(null))
+  }, [])
 
   return (
     <main className="min-h-screen overflow-auto bg-canvas">
       <div className="flex h-[1080px] w-[1920px] flex-col bg-canvas text-ink">
-        <header className="flex h-[72px] shrink-0 items-center justify-between px-10">
+        <header className="flex h-[72px] shrink-0 items-center px-10">
           <p className="text-sm font-semibold tracking-[0.22em] text-teal">AVAL</p>
-          <p className="text-xl font-semibold">
-            {listing ? `${listing.emoji} ${listing.title}` : 'Live deal'}
-          </p>
-          <p className="font-mono text-lg text-slate2">
-            {listing ? formatCents(listing.listCents) : ''}
-          </p>
         </header>
-
-        <div className="grid min-h-0 flex-1 grid-cols-[320px_1fr_400px] gap-8 px-10 pb-8">
-          <aside className="flex flex-col gap-8">
-            <AvaTile speaking={speaking} />
-            <ul className="flex flex-col gap-3">
-              {mockMembers.map((member) => (
-                <li key={member.id} className="flex items-center justify-between text-sm">
-                  <span>
-                    {member.name}
-                    <span className="ml-2 text-slate2">
-                      {member.slot} · {member.role}
-                    </span>
-                  </span>
+        <div className="grid min-h-0 flex-1 grid-cols-3 gap-8 px-10">
+          <section className="rounded-3xl bg-surface p-6">
+            <p className="text-sm font-semibold text-slate2">Mom</p>
+            <p className="mt-2 text-2xl font-semibold">Margaret Chen</p>
+            <p className="mt-2 font-mono text-3xl">{account ? formatCents(account.balanceCents) : '—'}</p>
+            <ul className="mt-4 flex flex-col gap-2 text-sm">
+              {(account?.bills ?? []).map(bill => (
+                <li key={`${bill.payee}-${bill.paymentDate}`} className="flex justify-between">
+                  <span>{bill.payee}</span>
+                  <span className="font-mono">${bill.paymentAmount.toFixed(2)}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+          <section className="rounded-3xl bg-surface p-6">
+            <p className="text-sm font-semibold text-slate2">Held payment</p>
+            {held ? (
+              <>
+                <h2 className="mt-2 text-3xl font-semibold">{held.payeeName}</h2>
+                <p className="mt-2 font-mono text-2xl">{formatCents(held.amountCents)}</p>
+                <p className="mt-1 text-sm text-slate2">Score {held.score}</p>
+                <ReasonList reasonsJson={held.reasonsJson} />
+              </>
+            ) : (
+              <p className="mt-4 text-slate2">No held payment.</p>
+            )}
+          </section>
+          <section className="rounded-3xl bg-surface p-6">
+            <p className="text-sm font-semibold text-slate2">Guardians</p>
+            <ul className="mt-3 flex flex-col gap-2 text-sm">
+              {guardians.map(member => (
+                <li key={member.id} className="flex items-center justify-between">
+                  <span>{member.name}</span>
                   <span className={`h-2.5 w-2.5 rounded-full ${member.online ? 'bg-green' : 'bg-slate-500'}`} />
                 </li>
               ))}
             </ul>
-          </aside>
-
-          <section className="flex min-h-0 flex-col gap-5 overflow-hidden rounded-3xl bg-surface p-6 text-ink">
-            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto">
-              {messages.map((message) => (
-                <AgentChatBubble key={message.id} from={message.from} text={message.text} cents={message.cents} />
-              ))}
-            </div>
-            {listing && (
-              <ConvergenceBar
-                bidCents={deal.bidCents}
-                askCents={deal.askCents}
-                listCents={listing.listCents}
-                role="buyer"
-              />
+            {held && (
+              <div className="mt-6 grid grid-cols-3 gap-2">
+                <button type="button" onClick={() => void pausePayment(held.id)} className="h-10 rounded-xl bg-amber text-sm font-semibold">
+                  Pause
+                </button>
+                <button type="button" onClick={() => void stopPayment(held.id)} className="h-10 rounded-xl bg-red text-sm font-semibold text-white">
+                  Stop
+                </button>
+                <button type="button" disabled className="h-10 rounded-xl bg-slate-200 text-sm font-semibold text-slate2">
+                  Approve
+                </button>
+              </div>
             )}
-            <DealTracker
-              status={deal.status}
-              offerCents={deal.bidCents}
-              askCents={deal.askCents}
-              round={deal.round}
-            />
-            {deal.status === 'escrowed' && <VaultCard priceCents={heldCents} />}
           </section>
-
-          <aside className="flex min-h-0 flex-col gap-6">
-            <QrJoinCard />
-            <div className="rounded-2xl bg-surface p-5">
-              <MoneyFlowStrip step={moneyStep(deal.status)} amountCents={heldCents} />
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-surface p-4">
-              {mockAccounts.map((account) => (
-                <div key={account.slot} className="flex items-center justify-between py-1 font-mono text-sm">
-                  <span className="text-slate2">
-                    {account.slot} {account.label}
-                  </span>
-                  <span>{formatCents(account.balanceCents)}</span>
-                </div>
-              ))}
-            </div>
-            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto">
-              {mockNessieLog.map((log) => (
-                <NessieLogRow key={log.id} log={log} />
-              ))}
-            </div>
-          </aside>
         </div>
-
-        <CaptionBar text={CAPTIONS[deal.status]} />
+        <div className="flex h-48 shrink-0 flex-col gap-2 overflow-auto px-10 py-4">
+          {logs.map(log => (
+            <NessieLogRow key={log.id} log={log} />
+          ))}
+        </div>
       </div>
     </main>
   )

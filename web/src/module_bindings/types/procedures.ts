@@ -6,8 +6,17 @@
 import { type Infer as __Infer } from "spacetimedb";
 
 // Import all procedure arg schemas
+import * as ComputeRiskScoreProcedure from "../compute_risk_score_procedure";
+import * as FetchMomAccountProcedure from "../fetch_mom_account_procedure";
 import * as SeedBankProcedure from "../seed_bank_procedure";
+import * as SendTransferProcedure from "../send_transfer_procedure";
 
+export type ComputeRiskScoreArgs = __Infer<typeof ComputeRiskScoreProcedure.params>;
+export type ComputeRiskScoreResult = __Infer<typeof ComputeRiskScoreProcedure.returnType>;
+export type FetchMomAccountArgs = __Infer<typeof FetchMomAccountProcedure.params>;
+export type FetchMomAccountResult = __Infer<typeof FetchMomAccountProcedure.returnType>;
 export type SeedBankArgs = __Infer<typeof SeedBankProcedure.params>;
 export type SeedBankResult = __Infer<typeof SeedBankProcedure.returnType>;
+export type SendTransferArgs = __Infer<typeof SendTransferProcedure.params>;
+export type SendTransferResult = __Infer<typeof SendTransferProcedure.returnType>;
 

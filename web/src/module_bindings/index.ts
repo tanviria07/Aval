@@ -34,32 +34,39 @@ import {
 } from "spacetimedb";
 
 // Import all reducer arg schemas
-import AcceptReducer from "./accept_reducer";
-import ConfirmDeliveryReducer from "./confirm_delivery_reducer";
+import ConfirmPaymentReducer from "./confirm_payment_reducer";
 import CreateListingReducer from "./create_listing_reducer";
-import DeclineReducer from "./decline_reducer";
 import DemoFastForwardReducer from "./demo_fast_forward_reducer";
 import DemoResetReducer from "./demo_reset_reducer";
 import JoinReducer from "./join_reducer";
 import MarkPaymentHeldReducer from "./mark_payment_held_reducer";
 import MarkRefundedReducer from "./mark_refunded_reducer";
 import MarkReleasedReducer from "./mark_released_reducer";
-import MarkShippedReducer from "./mark_shipped_reducer";
+import PausePaymentReducer from "./pause_payment_reducer";
+import ReleasePaymentReducer from "./release_payment_reducer";
+import RequestPaymentReducer from "./request_payment_reducer";
 import SetConfigReducer from "./set_config_reducer";
-import StartDealReducer from "./start_deal_reducer";
+import StopPaymentReducer from "./stop_payment_reducer";
+import TimeoutPaymentReducer from "./timeout_payment_reducer";
 
 // Import all procedure arg schemas
+import * as ComputeRiskScoreProcedure from "./compute_risk_score_procedure";
+import * as FetchMomAccountProcedure from "./fetch_mom_account_procedure";
 import * as SeedBankProcedure from "./seed_bank_procedure";
+import * as SendTransferProcedure from "./send_transfer_procedure";
 
 // Import all table schema definitions
 import AccountRow from "./account_table";
 import AuditEventRow from "./audit_event_table";
-import DealRow from "./deal_table";
+import ConfigRow from "./config_table";
 import ListingRow from "./listing_table";
 import MemberRow from "./member_table";
-import MessageRow from "./message_table";
 import MyLimitsRow from "./my_limits_table";
 import NessieLogRow from "./nessie_log_table";
+import OutboxRow from "./outbox_table";
+import PaymentRow from "./payment_table";
+import ReleaseTimerRow from "./release_timer_table";
+import SecretLimitRow from "./secret_limit_table";
 
 /** Type-only namespace exports for generated type groups. */
 
@@ -87,20 +94,17 @@ const tablesSchema = __schema({
       { name: 'audit_event_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, AuditEventRow),
-  deal: __table({
-    name: 'deal',
+  config: __table({
+    name: 'config',
     indexes: [
-      { accessor: 'id', name: 'deal_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
-      { accessor: 'listingId', name: 'deal_listing_id_idx_btree', algorithm: 'btree', columns: [
-        'listingId',
+      { accessor: 'key', name: 'config_key_idx_btree', algorithm: 'btree', columns: [
+        'key',
       ] },
     ],
     constraints: [
-      { name: 'deal_id_key', constraint: 'unique', columns: ['id'] },
+      { name: 'config_key_key', constraint: 'unique', columns: ['key'] },
     ],
-  }, DealRow),
+  }, ConfigRow),
   listing: __table({
     name: 'listing',
     indexes: [
@@ -123,20 +127,6 @@ const tablesSchema = __schema({
       { name: 'member_identity_key', constraint: 'unique', columns: ['identity'] },
     ],
   }, MemberRow),
-  message: __table({
-    name: 'message',
-    indexes: [
-      { accessor: 'dealId', name: 'message_deal_id_idx_btree', algorithm: 'btree', columns: [
-        'dealId',
-      ] },
-      { accessor: 'id', name: 'message_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
-    ],
-    constraints: [
-      { name: 'message_id_key', constraint: 'unique', columns: ['id'] },
-    ],
-  }, MessageRow),
   nessieLog: __table({
     name: 'nessie_log',
     indexes: [
@@ -148,6 +138,56 @@ const tablesSchema = __schema({
       { name: 'nessie_log_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, NessieLogRow),
+  outbox: __table({
+    name: 'outbox',
+    indexes: [
+      { accessor: 'id', name: 'outbox_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'outbox_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, OutboxRow),
+  payment: __table({
+    name: 'payment',
+    indexes: [
+      { accessor: 'id', name: 'payment_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'payment_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, PaymentRow),
+  releaseTimer: __table({
+    name: 'release_timer',
+    indexes: [
+      { accessor: 'id', name: 'release_timer_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'release_timer_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, ReleaseTimerRow),
+  secretLimit: __table({
+    name: 'secret_limit',
+    indexes: [
+      { accessor: 'dealOrListingId', name: 'secret_limit_deal_or_listing_id_idx_btree', algorithm: 'btree', columns: [
+        'dealOrListingId',
+      ] },
+      { accessor: 'id', name: 'secret_limit_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+      { accessor: 'ownerId', name: 'secret_limit_owner_id_idx_btree', algorithm: 'btree', columns: [
+        'ownerId',
+      ] },
+    ],
+    constraints: [
+      { name: 'secret_limit_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, SecretLimitRow),
   myLimits: __table({
     name: 'my_limits',
     indexes: [
@@ -159,24 +199,28 @@ const tablesSchema = __schema({
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
-  __reducerSchema("accept", AcceptReducer),
-  __reducerSchema("confirm_delivery", ConfirmDeliveryReducer),
+  __reducerSchema("confirm_payment", ConfirmPaymentReducer),
   __reducerSchema("create_listing", CreateListingReducer),
-  __reducerSchema("decline", DeclineReducer),
   __reducerSchema("demo_fast_forward", DemoFastForwardReducer),
   __reducerSchema("demo_reset", DemoResetReducer),
   __reducerSchema("join", JoinReducer),
   __reducerSchema("mark_payment_held", MarkPaymentHeldReducer),
   __reducerSchema("mark_refunded", MarkRefundedReducer),
   __reducerSchema("mark_released", MarkReleasedReducer),
-  __reducerSchema("mark_shipped", MarkShippedReducer),
+  __reducerSchema("pause_payment", PausePaymentReducer),
+  __reducerSchema("release_payment", ReleasePaymentReducer),
+  __reducerSchema("request_payment", RequestPaymentReducer),
   __reducerSchema("set_config", SetConfigReducer),
-  __reducerSchema("start_deal", StartDealReducer),
+  __reducerSchema("stop_payment", StopPaymentReducer),
+  __reducerSchema("timeout_payment", TimeoutPaymentReducer),
 );
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */
 const proceduresSchema = __procedures(
+  __procedureSchema("compute_risk_score", ComputeRiskScoreProcedure.params, ComputeRiskScoreProcedure.returnType),
+  __procedureSchema("fetch_mom_account", FetchMomAccountProcedure.params, FetchMomAccountProcedure.returnType),
   __procedureSchema("seed_bank", SeedBankProcedure.params, SeedBankProcedure.returnType),
+  __procedureSchema("send_transfer", SendTransferProcedure.params, SendTransferProcedure.returnType),
 );
 
 type __SchemaWithTableAccessorAliases = Omit<typeof tablesSchema.schemaType, "tables"> & {
@@ -185,6 +229,10 @@ type __SchemaWithTableAccessorAliases = Omit<typeof tablesSchema.schemaType, "ta
     readonly "audit_event": Omit<typeof tablesSchema.schemaType.tables["auditEvent"], "accessorName"> & { readonly accessorName: "audit_event" };
     /** @deprecated Use `nessieLog` instead. This alias will be removed in the next major version. */
     readonly "nessie_log": Omit<typeof tablesSchema.schemaType.tables["nessieLog"], "accessorName"> & { readonly accessorName: "nessie_log" };
+    /** @deprecated Use `releaseTimer` instead. This alias will be removed in the next major version. */
+    readonly "release_timer": Omit<typeof tablesSchema.schemaType.tables["releaseTimer"], "accessorName"> & { readonly accessorName: "release_timer" };
+    /** @deprecated Use `secretLimit` instead. This alias will be removed in the next major version. */
+    readonly "secret_limit": Omit<typeof tablesSchema.schemaType.tables["secretLimit"], "accessorName"> & { readonly accessorName: "secret_limit" };
     /** @deprecated Use `myLimits` instead. This alias will be removed in the next major version. */
     readonly "my_limits": Omit<typeof tablesSchema.schemaType.tables["myLimits"], "accessorName"> & { readonly accessorName: "my_limits" };
   };
@@ -207,6 +255,8 @@ const REMOTE_MODULE = {
 const tableAccessorAliases = {
   "audit_event": "auditEvent",
   "nessie_log": "nessieLog",
+  "release_timer": "releaseTimer",
+  "secret_limit": "secretLimit",
   "my_limits": "myLimits",
 } as const;
 
@@ -232,6 +282,10 @@ export type DbView = __DbViewBase & {
   readonly "audit_event": __DbViewBase["auditEvent"];
   /** @deprecated Use `nessieLog` instead. This alias will be removed in the next major version. */
   readonly "nessie_log": __DbViewBase["nessieLog"];
+  /** @deprecated Use `releaseTimer` instead. This alias will be removed in the next major version. */
+  readonly "release_timer": __DbViewBase["releaseTimer"];
+  /** @deprecated Use `secretLimit` instead. This alias will be removed in the next major version. */
+  readonly "secret_limit": __DbViewBase["secretLimit"];
   /** @deprecated Use `myLimits` instead. This alias will be removed in the next major version. */
   readonly "my_limits": __DbViewBase["myLimits"];
 };
@@ -242,6 +296,10 @@ export type Tables = __TablesBase & {
   readonly "audit_event": __TablesBase["auditEvent"];
   /** @deprecated Use `nessieLog` instead. This alias will be removed in the next major version. */
   readonly "nessie_log": __TablesBase["nessieLog"];
+  /** @deprecated Use `releaseTimer` instead. This alias will be removed in the next major version. */
+  readonly "release_timer": __TablesBase["releaseTimer"];
+  /** @deprecated Use `secretLimit` instead. This alias will be removed in the next major version. */
+  readonly "secret_limit": __TablesBase["secretLimit"];
   /** @deprecated Use `myLimits` instead. This alias will be removed in the next major version. */
   readonly "my_limits": __TablesBase["myLimits"];
 };

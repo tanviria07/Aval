@@ -6,31 +6,37 @@
 import { type Infer as __Infer } from "spacetimedb";
 
 // Import all reducer arg schemas
-import AcceptReducer from "../accept_reducer";
-import ConfirmDeliveryReducer from "../confirm_delivery_reducer";
+import ConfirmPaymentReducer from "../confirm_payment_reducer";
 import CreateListingReducer from "../create_listing_reducer";
-import DeclineReducer from "../decline_reducer";
 import DemoFastForwardReducer from "../demo_fast_forward_reducer";
 import DemoResetReducer from "../demo_reset_reducer";
 import JoinReducer from "../join_reducer";
 import MarkPaymentHeldReducer from "../mark_payment_held_reducer";
 import MarkRefundedReducer from "../mark_refunded_reducer";
 import MarkReleasedReducer from "../mark_released_reducer";
-import MarkShippedReducer from "../mark_shipped_reducer";
+import OnConnectReducer from "../on_connect_reducer";
+import OnDisconnectReducer from "../on_disconnect_reducer";
+import PausePaymentReducer from "../pause_payment_reducer";
+import ReleasePaymentReducer from "../release_payment_reducer";
+import RequestPaymentReducer from "../request_payment_reducer";
 import SetConfigReducer from "../set_config_reducer";
-import StartDealReducer from "../start_deal_reducer";
+import StopPaymentReducer from "../stop_payment_reducer";
+import TimeoutPaymentReducer from "../timeout_payment_reducer";
 
-export type AcceptParams = __Infer<typeof AcceptReducer>;
-export type ConfirmDeliveryParams = __Infer<typeof ConfirmDeliveryReducer>;
+export type ConfirmPaymentParams = __Infer<typeof ConfirmPaymentReducer>;
 export type CreateListingParams = __Infer<typeof CreateListingReducer>;
-export type DeclineParams = __Infer<typeof DeclineReducer>;
 export type DemoFastForwardParams = __Infer<typeof DemoFastForwardReducer>;
 export type DemoResetParams = __Infer<typeof DemoResetReducer>;
 export type JoinParams = __Infer<typeof JoinReducer>;
 export type MarkPaymentHeldParams = __Infer<typeof MarkPaymentHeldReducer>;
 export type MarkRefundedParams = __Infer<typeof MarkRefundedReducer>;
 export type MarkReleasedParams = __Infer<typeof MarkReleasedReducer>;
-export type MarkShippedParams = __Infer<typeof MarkShippedReducer>;
+export type OnConnectParams = __Infer<typeof OnConnectReducer>;
+export type OnDisconnectParams = __Infer<typeof OnDisconnectReducer>;
+export type PausePaymentParams = __Infer<typeof PausePaymentReducer>;
+export type ReleasePaymentParams = __Infer<typeof ReleasePaymentReducer>;
+export type RequestPaymentParams = __Infer<typeof RequestPaymentReducer>;
 export type SetConfigParams = __Infer<typeof SetConfigReducer>;
-export type StartDealParams = __Infer<typeof StartDealReducer>;
+export type StopPaymentParams = __Infer<typeof StopPaymentReducer>;
+export type TimeoutPaymentParams = __Infer<typeof TimeoutPaymentReducer>;
 

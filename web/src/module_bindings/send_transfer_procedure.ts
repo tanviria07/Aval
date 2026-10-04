@@ -10,6 +10,13 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
-export default {
-  paymentId: __t.u64(),
+import {
+  Outbox,
+} from "./types";
+
+export const params = {
+  get arg() {
+    return Outbox;
+  },
 };
+export const returnType = __t.unit()

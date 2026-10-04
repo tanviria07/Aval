@@ -5,7 +5,8 @@ type Props = {
 }
 
 function formatClock(at: number) {
-  return new Date(at).toLocaleTimeString('en-GB', {
+  const millis = at > 1e14 ? Math.floor(at / 1000) : at
+  return new Date(millis).toLocaleTimeString('en-GB', {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',

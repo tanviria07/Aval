@@ -11,6 +11,5 @@ import {
 } from "spacetimedb";
 
 export default {
-  listingId: __t.u64(),
-  ceilingCents: __t.u64(),
+  paymentId: __t.u64(),
 };

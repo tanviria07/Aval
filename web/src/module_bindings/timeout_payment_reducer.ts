@@ -10,6 +10,12 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
+import {
+  ReleaseTimer,
+} from "./types";
+
 export default {
-  paymentId: __t.u64(),
+  get arg() {
+    return ReleaseTimer;
+  },
 };

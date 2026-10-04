@@ -10,6 +10,10 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
-export default {
-  paymentId: __t.u64(),
-};
+export default __t.row({
+  id: __t.u64().primaryKey(),
+  ownerId: __t.identity().name("owner_id"),
+  dealOrListingId: __t.u64().name("deal_or_listing_id"),
+  kind: __t.string(),
+  cents: __t.u64(),
+});

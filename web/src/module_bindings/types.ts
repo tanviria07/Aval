@@ -31,27 +31,6 @@ export const Config = __t.object("Config", {
 });
 export type Config = __Infer<typeof Config>;
 
-export const Deal = __t.object("Deal", {
-  id: __t.u64(),
-  listingId: __t.u64(),
-  buyerId: __t.identity(),
-  sellerId: __t.identity(),
-  status: __t.string(),
-  round: __t.u32(),
-  bidCents: __t.u64(),
-  askCents: __t.u64(),
-  priceCents: __t.option(__t.u64()),
-  buyerAccepted: __t.bool(),
-  sellerAccepted: __t.bool(),
-  shipByAt: __t.option(__t.u64()),
-  tracking: __t.option(__t.string()),
-  holdTransferId: __t.option(__t.string()),
-  releaseTransferId: __t.option(__t.string()),
-  refundTransferId: __t.option(__t.string()),
-  createdAt: __t.u64(),
-});
-export type Deal = __Infer<typeof Deal>;
-
 export const Listing = __t.object("Listing", {
   id: __t.u64(),
   sellerId: __t.identity(),
@@ -72,16 +51,6 @@ export const Member = __t.object("Member", {
 });
 export type Member = __Infer<typeof Member>;
 
-export const Message = __t.object("Message", {
-  id: __t.u64(),
-  dealId: __t.u64(),
-  from: __t.string(),
-  text: __t.string(),
-  cents: __t.option(__t.u64()),
-  at: __t.u64(),
-});
-export type Message = __Infer<typeof Message>;
-
 export const MyLimit = __t.object("MyLimit", {
   kind: __t.string(),
   cents: __t.u64(),
@@ -90,13 +59,6 @@ export type MyLimit = __Infer<typeof MyLimit>;
 
 export const MyLimits = __t.object("MyLimits", {});
 export type MyLimits = __Infer<typeof MyLimits>;
-
-export const NegotiationTickRow = __t.object("NegotiationTickRow", {
-  id: __t.u64(),
-  dealId: __t.u64(),
-  scheduledAt: __t.scheduleAt(),
-});
-export type NegotiationTickRow = __Infer<typeof NegotiationTickRow>;
 
 export const NessieLog = __t.object("NessieLog", {
   id: __t.u64(),
@@ -110,11 +72,36 @@ export type NessieLog = __Infer<typeof NessieLog>;
 
 export const Outbox = __t.object("Outbox", {
   id: __t.u64(),
-  dealId: __t.u64(),
+  paymentId: __t.u64(),
   kind: __t.string(),
   scheduledAt: __t.scheduleAt(),
 });
 export type Outbox = __Infer<typeof Outbox>;
+
+export const Payment = __t.object("Payment", {
+  id: __t.u64(),
+  elderId: __t.identity(),
+  payeeName: __t.string(),
+  payeeNessieId: __t.option(__t.string()),
+  amountCents: __t.u64(),
+  score: __t.u32(),
+  reasonsJson: __t.string(),
+  status: __t.string(),
+  secretFlag: __t.bool(),
+  paidBy: __t.option(__t.identity()),
+  pausedBy: __t.option(__t.identity()),
+  stoppedBy: __t.option(__t.string()),
+  transferId: __t.option(__t.string()),
+  createdAt: __t.u64(),
+});
+export type Payment = __Infer<typeof Payment>;
+
+export const ReleaseTimer = __t.object("ReleaseTimer", {
+  id: __t.u64(),
+  paymentId: __t.u64(),
+  scheduledAt: __t.scheduleAt(),
+});
+export type ReleaseTimer = __Infer<typeof ReleaseTimer>;
 
 export const SecretLimit = __t.object("SecretLimit", {
   id: __t.u64(),
@@ -124,11 +111,4 @@ export const SecretLimit = __t.object("SecretLimit", {
   cents: __t.u64(),
 });
 export type SecretLimit = __Infer<typeof SecretLimit>;
-
-export const ShipTimer = __t.object("ShipTimer", {
-  id: __t.u64(),
-  dealId: __t.u64(),
-  scheduledAt: __t.scheduleAt(),
-});
-export type ShipTimer = __Infer<typeof ShipTimer>;
 
