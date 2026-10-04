@@ -101,8 +101,8 @@ export function DemoPage() {
 
           <section className="col-span-3 flex min-h-0 flex-col">
             <p className="font-type text-[18px] uppercase tracking-[0.16em] text-paper/70">Family</p>
-            <ul className="mt-3 flex min-h-0 flex-1 flex-col gap-3 overflow-auto pr-1">
-              {listed.map(member => (
+            <ul className="mt-3 grid min-h-0 flex-1 grid-rows-3 gap-2 overflow-hidden pt-2">
+              {listed.filter(member => member.role === 'guardian').map(member => (
                 <FamilyRow key={member.id} member={member} payment={held} />
               ))}
             </ul>
@@ -228,18 +228,20 @@ function FamilyRow({ member, payment }: { member: Member; payment?: Payment }) {
   const initial = member.name.trim().charAt(0).toUpperCase() || '?'
   const first = member.name.trim().split(' ')[0] || member.name
   return (
-    <li className="flex items-center gap-4">
-      <figure className="relative w-[147px] shrink-0 bg-white px-3 pb-2 pt-3 shadow-scrap">
-        <WashiTape className="-top-2 left-2 w-20" />
-        <div
-          className="relative flex aspect-square items-center justify-center font-serif text-4xl text-ink"
-          style={{ background: toneFor(member.name) }}
-        >
-          {initial}
-          {member.online && <span className="absolute bottom-1.5 right-1.5 h-3.5 w-3.5 rounded-full bg-sage-ink" aria-label="Online" />}
+    <li className="flex h-full min-h-0 items-center gap-3">
+      <figure className="relative flex h-full min-h-0 w-[148px] shrink-0 flex-col bg-white px-2 pb-1 pt-1.5 shadow-scrap">
+        <WashiTape className="-top-1.5 left-2 w-16" />
+        <div className="relative min-h-0 w-full flex-1 [container-type:size]">
+          <div
+            className="absolute left-1/2 top-1/2 flex aspect-square -translate-x-1/2 -translate-y-1/2 items-center justify-center font-serif text-3xl text-ink [height:min(100cqw,100cqh)] [width:min(100cqw,100cqh)]"
+            style={{ background: toneFor(member.name) }}
+          >
+            {initial}
+            {member.online && <span className="absolute bottom-1 right-1 h-3 w-3 rounded-full bg-sage-ink" aria-label="Online" />}
+          </div>
         </div>
-        <figcaption className="mt-1 truncate text-center font-script text-[26px] leading-none text-ink">{first}</figcaption>
-        <p className="text-center font-sans text-[18px] leading-none text-sepia">{member.online ? 'online' : 'offline'}</p>
+        <figcaption className="mt-0.5 shrink-0 truncate text-center font-script text-[22px] leading-none text-ink">{first}</figcaption>
+        <p className="shrink-0 text-center font-sans text-xs leading-none text-sepia">{member.online ? 'online' : 'offline'}</p>
       </figure>
       <Stamp label={action.label} tone={action.tone} className="!text-[18px]" />
     </li>

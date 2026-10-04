@@ -80,7 +80,7 @@ export function MomPage() {
     .sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? 1 : -1))
   const active = mine.find(payment => activeStatuses.includes(payment.status))
   const newest = mine[0]
-  const family = membersOnPayment(members, active ? [active.elderId] : [])
+  const family = membersOnPayment(members, []).filter(member => member.role === 'guardian')
   const payees = accounts
     .filter(row => row.label.trim() && row.slot !== 'MARGARET' && row.slot !== 'ESCROW')
     .sort((a, b) => a.label.localeCompare(b.label))

@@ -144,7 +144,14 @@ function Timeline({ payment, members, momName }: { payment: Payment; members: Me
   } else if (payment.paidBy) {
     events.push({ label: `${nameOf(members, payment.paidBy)} confirmed`, at: stamp(`paid-${payment.id}`, payment.createdAt) })
   }
-  if (payment.status === 'objection' || payment.status === 'releasing' || payment.status === 'released') {
+  if (payment.approvedBy) {
+    const approver = nameOf(members, payment.approvedBy)
+    const waiting = payment.status === 'held' && !payment.paidBy
+    events.push({
+      label: waiting ? `${approver} approved · waiting for ${momName}` : `${approver} approved`,
+      at: stamp(`approved-${payment.id}`, payment.createdAt),
+    })
+  } else if (payment.status === 'objection' || payment.status === 'releasing' || payment.status === 'released') {
     events.push({ label: 'A guardian approved', at: stamp(`approved-${payment.id}`, payment.createdAt) })
   }
   if (payment.pausedBy) {
@@ -178,7 +185,7 @@ function ActionBar({ payment, dock = false }: { payment: Payment; dock?: boolean
     try {
       await action()
     } catch (err) {
-      setError(plainMessage(err, 'Someone already acted'))
+      setError(plainMessage(err, "That didn't go through. Please try again."))
     } finally {
       setPending('')
     }
