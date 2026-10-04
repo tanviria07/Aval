@@ -17,7 +17,6 @@ import {
 import { CountdownBar, objectionEndsAt } from '../components/CountdownBar'
 import { Logo } from '../components/Logo'
 import { Money } from '../components/Money'
-import { Polaroid } from '../components/Polaroid'
 import { ReasonList } from '../components/ReasonList'
 import { Stamp, StatusPill } from '../components/StatusPill'
 import { TicketStub } from '../components/TicketStub'
@@ -78,9 +77,9 @@ export function DemoPage() {
               <Logo className="h-7 w-[128px]" color="#F4ECDD" />
               <h1 className="truncate font-serif text-4xl uppercase tracking-wide">The Family Ledger</h1>
             </div>
-            <p className="mt-1 font-type text-sm text-paper/80">Scams need silence. — Live edition</p>
+            <p className="mt-1 font-type text-[22px] text-paper/80">Scams need silence. — Live edition</p>
           </div>
-          <Stamp label={`Live · ${connected} connected`} tone="red" className="shrink-0 text-sm" />
+          <Stamp label={`Live · ${connected} connected`} tone="red" className="shrink-0 !text-[18px]" />
         </header>
 
         <div className="grid min-h-0 flex-1 grid-cols-12 gap-4">
@@ -100,8 +99,8 @@ export function DemoPage() {
           </section>
 
           <section className="col-span-3 flex min-h-0 flex-col">
-            <p className="font-type text-xs uppercase tracking-[0.16em] text-paper/70">Family</p>
-            <ul className="mt-3 flex min-h-0 flex-1 flex-col gap-4 overflow-auto pr-1">
+            <p className="font-type text-[18px] uppercase tracking-[0.16em] text-paper/70">Family</p>
+            <ul className="mt-3 flex min-h-0 flex-1 flex-col gap-3 overflow-auto pr-1">
               {listed.map(member => (
                 <FamilyRow key={member.id} member={member} payment={held} />
               ))}
@@ -109,27 +108,29 @@ export function DemoPage() {
           </section>
         </div>
 
-        <footer className="grid h-[210px] shrink-0 grid-cols-12 gap-4">
-          <div className="col-span-5 flex min-w-0 flex-col">
-            <div className="grid grid-cols-3 gap-3">
-              <BalanceTile label="Mom" cents={momBalance} positive="sage" />
-              <BalanceTile label="Aval Hold" cents={holdBalance} positive="blue" />
-              <BalanceTile label={held?.payeeName ?? 'Payee'} cents={payeeAccount?.balanceCents} positive="blue" />
+        <footer className="flex shrink-0 flex-col gap-3">
+          <div className="grid grid-cols-12 gap-4">
+            <div className="col-span-8 flex min-w-0 flex-col">
+              <div className="grid grid-cols-3 gap-3">
+                <BalanceTile label="Mom" cents={momBalance} positive="sage" />
+                <BalanceTile label="Aval Hold" cents={holdBalance} positive="blue" />
+                <BalanceTile label={held?.payeeName ?? 'Payee'} cents={payeeAccount?.balanceCents} positive="blue" />
+              </div>
+              <div className="mt-2 flex items-center gap-4 font-type text-sm text-paper">
+                <button type="button" onClick={() => void run(seedBank)}>
+                  Seed
+                </button>
+                <button type="button" onClick={() => void run(demoReset)}>
+                  Reset
+                </button>
+                {note && <span className="truncate text-paper/80">{note}</span>}
+              </div>
             </div>
-            <div className="mt-auto flex items-center gap-4 font-type text-sm text-paper">
-              <button type="button" onClick={() => void run(seedBank)}>
-                Seed
-              </button>
-              <button type="button" onClick={() => void run(demoReset)}>
-                Reset
-              </button>
-              {note && <span className="truncate text-paper/80">{note}</span>}
+            <div className="col-span-4 min-w-0">
+              <JoinQr name={momName} />
             </div>
           </div>
-          <Ledger logs={logs} className="col-span-5" />
-          <div className="col-span-2 min-w-0">
-            <JoinQr name={momName} />
-          </div>
+          <Ledger logs={logs} payments={payments} />
         </footer>
       </div>
     </main>
@@ -146,19 +147,19 @@ function MomMirror({ name, balance, payment }: { name: string; balance?: number;
         {hello}, {name.split(' ')[0]}
       </p>
       <div className="mt-4 bg-paper-2 p-4 shadow-scrap">
-        <p className="font-type text-xs text-sepia">Checking</p>
+        <p className="font-type text-[18px] text-sepia">Checking</p>
         <p className="mt-1">{balance != null ? <Money cents={balance} size="lg" /> : '—'}</p>
       </div>
       {payment ? (
         <div className="mt-4 flex flex-1 flex-col items-center text-center">
-          <StatusPill status={payment.status} />
-          <p className="mt-4 font-serif text-lg leading-tight">Held safely at your bank</p>
-          <p className="mt-2 font-sans text-sm">Your family is looking at it with you.</p>
-          <p className="mt-3 font-sans text-sm text-sepia">{payment.payeeName}</p>
+          <StatusPill status={payment.status} className="!text-[18px]" />
+          <p className="mt-4 font-serif text-[18px] leading-tight">Held safely at your bank</p>
+          <p className="mt-2 font-sans text-[18px]">Your family is looking at it with you.</p>
+          <p className="mt-3 font-sans text-[18px] text-sepia">{payment.payeeName}</p>
           <Money cents={payment.amountCents} size="md" />
         </div>
       ) : (
-        <p className="mt-6 font-sans text-sm text-sepia">No payment is waiting.</p>
+        <p className="mt-6 font-sans text-[18px] text-sepia">No payment is waiting.</p>
       )}
     </div>
   )
@@ -213,12 +214,33 @@ function Stage({ payment }: { payment?: Payment }) {
   )
 }
 
+const polaroidTones = ['#E4D3C4', '#D9C7B0', '#E7D5D2', '#D5D0C4', '#E2D4C2']
+
+function toneFor(name: string) {
+  let hash = 0
+  for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) >>> 0
+  return polaroidTones[hash % polaroidTones.length]
+}
+
 function FamilyRow({ member, payment }: { member: Member; payment?: Payment }) {
   const action = latestAction(member, payment)
+  const initial = member.name.trim().charAt(0).toUpperCase() || '?'
+  const first = member.name.trim().split(' ')[0] || member.name
   return (
-    <li className="flex items-center gap-3">
-      <Polaroid name={member.name} online={member.online} />
-      <Stamp label={action.label} tone={action.tone} className="text-[11px]" />
+    <li className="flex items-center gap-4">
+      <figure className="relative w-[147px] shrink-0 bg-white px-3 pb-2 pt-3 shadow-scrap">
+        <WashiTape className="-top-2 left-2 w-20" />
+        <div
+          className="relative flex aspect-square items-center justify-center font-serif text-4xl text-ink"
+          style={{ background: toneFor(member.name) }}
+        >
+          {initial}
+          {member.online && <span className="absolute bottom-1.5 right-1.5 h-3.5 w-3.5 rounded-full bg-sage-ink" aria-label="Online" />}
+        </div>
+        <figcaption className="mt-1 truncate text-center font-script text-[26px] leading-none text-ink">{first}</figcaption>
+        <p className="text-center font-sans text-[18px] leading-none text-sepia">{member.online ? 'online' : 'offline'}</p>
+      </figure>
+      <Stamp label={action.label} tone={action.tone} className="!text-[18px]" />
     </li>
   )
 }
@@ -255,8 +277,8 @@ function BalanceTile({ label, cents, positive }: { label: string; cents?: number
   return (
     <div className="relative min-w-0 bg-paper px-2 pb-3 pt-5 text-ink">
       <WashiTape className="-top-2 left-2 w-12" />
-      <p className="truncate font-type text-[11px] uppercase text-sepia">{label}</p>
-      <div className="mt-1">{cents != null ? <Money cents={cents} size="lg" /> : <span className="text-sepia">—</span>}</div>
+      <p className="truncate font-type text-[18px] uppercase text-sepia">{label}</p>
+      <div className="mt-1">{cents != null ? <Money cents={cents} size="lg" className="!text-[48px] !leading-none" /> : <span className="font-sans text-[48px] leading-none text-sepia">—</span>}</div>
       {delta != null && delta !== 0 && (
         <p className={`mt-1 font-sans text-sm tabular-nums ${delta < 0 ? 'text-stamp' : positive === 'sage' ? 'text-sage-ink' : 'text-blue'}`}>
           {delta > 0 ? '+' : '−'}
@@ -267,10 +289,11 @@ function BalanceTile({ label, cents, positive }: { label: string; cents?: number
   )
 }
 
-function Ledger({ logs, className = '' }: { logs: NessieLog[]; className?: string }) {
+function Ledger({ logs, payments, className = '' }: { logs: NessieLog[]; payments: Payment[]; className?: string }) {
   const rows = [...logs]
     .filter(log => log.method === 'POST' && log.path.includes('/transfers'))
     .sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? 1 : -1))
+    .slice(0, 6)
   const seen = useRef(new Set<string>())
   const ready = useRef(false)
   const [fresh, setFresh] = useState<string[]>([])
@@ -290,20 +313,68 @@ function Ledger({ logs, className = '' }: { logs: NessieLog[]; className?: strin
     return () => window.clearTimeout(timer)
   }, [logs])
 
+  const transferIds = transferIdsFor(rows, payments)
+
   return (
-    <div className={`min-h-0 overflow-auto bg-paper px-3 py-2 font-type text-[15px] leading-7 text-ink ${className}`}>
+    <div className={`h-[240px] overflow-hidden bg-paper px-3 font-type text-[22px] text-ink ${className}`}>
       {rows.map(row => (
-        <LedgerLine key={row.id} log={row} fresh={fresh.includes(row.id)} />
+        <LedgerLine key={row.id} log={row} fresh={fresh.includes(row.id)} transferId={transferIds.get(row.id)} />
       ))}
     </div>
   )
 }
 
-function LedgerLine({ log, fresh }: { log: NessieLog; fresh: boolean }) {
-  const match = /^(direct|hold|release|refund)/i.exec(log.note.trim())
-  const kind = (match?.[1] ?? 'failed').toUpperCase()
+function shortTransferId(id?: string) {
+  if (!id || id.length < 8) return '—'
+  return `${id.slice(0, 4)}…${id.slice(-4)}`
+}
+
+function kindOf(log: NessieLog) {
+  return (/^(direct|hold|release|refund)/i.exec(log.note.trim())?.[1] ?? 'failed').toUpperCase()
+}
+
+function centsOf(log: NessieLog) {
   const amount = /\$([0-9,.]+)/.exec(log.note)?.[1]
-  const dollars = amount ? Number(amount.replace(/,/g, '')) : null
+  if (!amount) return null
+  const dollars = Number(amount.replace(/,/g, ''))
+  return Number.isFinite(dollars) ? Math.round(dollars * 100) : null
+}
+
+function kindMatches(kind: string, status: Payment['status']) {
+  if (kind === 'REFUND') return status === 'refunded' || status === 'refunding'
+  if (kind === 'RELEASE') return status === 'released' || status === 'releasing'
+  if (kind === 'DIRECT') return status === 'sent' || status === 'cleared'
+  if (kind === 'HOLD') return status === 'held' || status === 'holding' || status === 'objection'
+  return false
+}
+
+function transferIdsFor(rows: NessieLog[], payments: Payment[]) {
+  const ids = new Map<string, string>()
+  const used = new Set<string>()
+  const newest = [...payments].sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? 1 : -1))
+  for (const row of rows) {
+    const embedded = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.exec(row.note)?.[0]
+    if (embedded) {
+      ids.set(row.id, shortTransferId(embedded))
+      continue
+    }
+    const kind = kindOf(row)
+    const cents = centsOf(row)
+    const payment = newest.find(item => {
+      if (!item.transferId || used.has(item.transferId)) return false
+      if (cents != null && item.amountCents !== cents) return false
+      return kindMatches(kind, item.status)
+    })
+    if (!payment?.transferId) continue
+    used.add(payment.transferId)
+    ids.set(row.id, shortTransferId(payment.transferId))
+  }
+  return ids
+}
+
+function LedgerLine({ log, fresh, transferId }: { log: NessieLog; fresh: boolean; transferId?: string }) {
+  const kind = kindOf(log)
+  const cents = centsOf(log)
   const route =
     kind === 'HOLD'
       ? 'Margaret → Aval Hold'
@@ -317,12 +388,13 @@ function LedgerLine({ log, fresh }: { log: NessieLog; fresh: boolean }) {
   const color =
     kind === 'HOLD' ? 'text-stamp' : kind === 'RELEASE' ? 'text-blue' : kind === 'REFUND' ? 'text-sage-ink' : kind === 'DIRECT' ? 'text-sepia' : 'text-stamp'
   return (
-    <p className={`grid grid-cols-[84px_78px_108px_1fr_40px] gap-2 border-b border-dotted border-sepia/40 ${fresh ? 'ledger-fresh' : ''}`}>
+    <p className={`grid h-10 grid-cols-[150px_120px_180px_1fr_72px_150px] items-center gap-3 border-b border-dotted border-sepia/40 leading-10 ${fresh ? 'ledger-fresh' : ''}`}>
       <span className="text-sepia">{formatClock(log.at)}</span>
       <span className={color}>{kind}</span>
-      <span className="font-sans tabular-nums">{dollars != null && Number.isFinite(dollars) ? formatCents(Math.round(dollars * 100)) : '—'}</span>
+      <span className="tabular-nums">{cents != null ? formatCents(cents) : '—'}</span>
       <span className="truncate">{route}</span>
       <span className="text-sepia">{log.status}</span>
+      <span className="text-sepia">{transferId ?? '—'}</span>
     </p>
   )
 }
