@@ -24,7 +24,19 @@ import { TicketStub } from '../components/TicketStub'
 import { WashiTape } from '../components/WashiTape'
 import { formatCents, formatClock } from '../format'
 
+function useStageScale() {
+  const [scale, setScale] = useState(1)
+  useEffect(() => {
+    const fit = () => setScale(Math.min(window.innerWidth / 1920, window.innerHeight / 1080))
+    fit()
+    window.addEventListener('resize', fit)
+    return () => window.removeEventListener('resize', fit)
+  }, [])
+  return scale
+}
+
 export function DemoPage() {
+  const scale = useStageScale()
   const members = useRows(onMembers)
   const payments = useRows(onPayments)
   const logs = useRows(onNessieLog)
@@ -54,7 +66,11 @@ export function DemoPage() {
   }
 
   return (
-    <main className="h-dvh w-screen overflow-hidden bg-demo p-8 text-paper">
+    <div className="flex h-dvh w-screen items-center justify-center overflow-hidden bg-demo">
+    <main
+      className="h-[1080px] w-[1920px] shrink-0 overflow-hidden bg-demo p-8 text-paper"
+      style={{ transform: `scale(${scale})` }}
+    >
       <div className="flex h-full min-h-0 flex-col gap-4">
         <header className="flex shrink-0 items-end justify-between gap-6 border-b border-paper/30 pb-3">
           <div className="min-w-0">
@@ -117,6 +133,7 @@ export function DemoPage() {
         </footer>
       </div>
     </main>
+    </div>
   )
 }
 
