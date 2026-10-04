@@ -89,7 +89,10 @@ export type NessieLog = {
   at: number;
 };
 
-const TOKEN_KEY = 'aval_auth_token';
+const STDB_URI =
+  import.meta.env.VITE_STDB_URI || (import.meta.env.PROD ? 'wss://maincloud.spacetimedb.com' : 'ws://127.0.0.1:3000');
+const STDB_DB = import.meta.env.VITE_STDB_DB || (import.meta.env.PROD ? 'aval-tanvir' : 'aval');
+const TOKEN_KEY = `aval_auth_token:${STDB_URI}:${STDB_DB}`;
 
 let conn: DbConnection | null = null;
 let connected = false;
@@ -115,8 +118,8 @@ function saveToken(token: string) {
 function getConnection(): DbConnection {
   if (conn) return conn;
   conn = DbConnection.builder()
-    .withUri('ws://127.0.0.1:3000')
-    .withDatabaseName('aval')
+    .withUri(STDB_URI)
+    .withDatabaseName(STDB_DB)
     .withToken(readToken())
     .onConnect((c, identity, token) => {
       saveToken(token);
