@@ -12,4 +12,5 @@ import {
 
 export default {
   paymentId: __t.u64(),
+  toldToKeepSecret: __t.bool(),
 };

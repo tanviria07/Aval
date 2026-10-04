@@ -31,6 +31,13 @@ export const Config = __t.object("Config", {
 });
 export type Config = __Infer<typeof Config>;
 
+export const HoldTimer = __t.object("HoldTimer", {
+  id: __t.u64(),
+  paymentId: __t.u64(),
+  scheduledAt: __t.scheduleAt(),
+});
+export type HoldTimer = __Infer<typeof HoldTimer>;
+
 export const Listing = __t.object("Listing", {
   id: __t.u64(),
   sellerId: __t.identity(),
@@ -78,6 +85,17 @@ export const Outbox = __t.object("Outbox", {
 });
 export type Outbox = __Infer<typeof Outbox>;
 
+export const PayeeCache = __t.object("PayeeCache", {
+  nameKey: __t.string(),
+  nessieAccountId: __t.string(),
+  score: __t.u32(),
+  reasonsJson: __t.string(),
+  knownBiller: __t.bool(),
+  momBalanceCents: __t.u64(),
+  updatedAt: __t.u64(),
+});
+export type PayeeCache = __Infer<typeof PayeeCache>;
+
 export const Payment = __t.object("Payment", {
   id: __t.u64(),
   elderId: __t.identity(),
@@ -93,12 +111,18 @@ export const Payment = __t.object("Payment", {
   stoppedBy: __t.option(__t.string()),
   transferId: __t.option(__t.string()),
   createdAt: __t.u64(),
+  round: __t.u32(),
+  momRound: __t.u32(),
+  approveRound: __t.u32(),
+  approvedBy: __t.option(__t.identity()),
+  windowRound: __t.u32(),
 });
 export type Payment = __Infer<typeof Payment>;
 
 export const ReleaseTimer = __t.object("ReleaseTimer", {
   id: __t.u64(),
   paymentId: __t.u64(),
+  round: __t.u32(),
   scheduledAt: __t.scheduleAt(),
 });
 export type ReleaseTimer = __Infer<typeof ReleaseTimer>;

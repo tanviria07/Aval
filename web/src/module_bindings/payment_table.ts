@@ -25,4 +25,9 @@ export default __t.row({
   stoppedBy: __t.option(__t.string()).name("stopped_by"),
   transferId: __t.option(__t.string()).name("transfer_id"),
   createdAt: __t.u64().name("created_at"),
+  round: __t.u32(),
+  momRound: __t.u32().name("mom_round"),
+  approveRound: __t.u32().name("approve_round"),
+  approvedBy: __t.option(__t.identity()).name("approved_by"),
+  windowRound: __t.u32().name("window_round"),
 });

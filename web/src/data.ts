@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
 import { DbConnection } from './module_bindings';
 
-export type Role = 'elder' | 'guardian';
+export type Role = 'mom' | 'guardian';
 
 export type PaymentStatus =
+  | 'holding'
   | 'held'
+  | 'objection'
   | 'cleared'
-  | 'paused'
-  | 'stopped'
+  | 'sent'
+  | 'failed'
   | 'releasing'
   | 'released'
   | 'refunding'
@@ -51,17 +53,37 @@ export type NessieLog = {
   at: number;
 };
 
+const TOKEN_KEY = 'aval_auth_token';
+
 let conn: DbConnection | null = null;
 let connected = false;
 let identityHex = '';
 let connectResolvers: (() => void)[] = [];
+
+function readToken(): string | undefined {
+  try {
+    return localStorage.getItem(TOKEN_KEY) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function saveToken(token: string) {
+  try {
+    localStorage.setItem(TOKEN_KEY, token);
+  } catch {
+    // The tab still works for this session if storage is blocked.
+  }
+}
 
 function getConnection(): DbConnection {
   if (conn) return conn;
   conn = DbConnection.builder()
     .withUri('ws://127.0.0.1:3000')
     .withDatabaseName('aval')
-    .onConnect((c, identity) => {
+    .withToken(readToken())
+    .onConnect((c, identity, token) => {
+      saveToken(token);
       identityHex = identity.toHexString();
       c.subscriptionBuilder()
         .onError(ctx => console.error('Aval subscription error', ctx.event))
@@ -130,13 +152,11 @@ export const join = async (name: string, role: Role, slot: string) => {
   await getConnection().reducers.join({ name, role, slot });
 };
 
-export const requestPayment = async (payeeName: string, amountCents: number, score: number, reasonsJson: string) => {
+export const requestPayment = async (payeeName: string, amountCents: number) => {
   await whenConnected();
   await getConnection().reducers.requestPayment({
     payeeName,
     amountCents: BigInt(amountCents),
-    score,
-    reasonsJson,
   });
 };
 
@@ -150,9 +170,14 @@ export const stopPayment = async (paymentId: string) => {
   await getConnection().reducers.stopPayment({ paymentId: BigInt(paymentId) });
 };
 
-export const confirmPayment = async (paymentId: string) => {
+export const confirmPayment = async (paymentId: string, toldToKeepSecret: boolean) => {
   await whenConnected();
-  await getConnection().reducers.confirmPayment({ paymentId: BigInt(paymentId) });
+  await getConnection().reducers.confirmPayment({ paymentId: BigInt(paymentId), toldToKeepSecret });
+};
+
+export const cancelPayment = async (paymentId: string) => {
+  await whenConnected();
+  await getConnection().reducers.cancelPayment({ paymentId: BigInt(paymentId) });
 };
 
 export const releasePayment = async (paymentId: string) => {

@@ -12,5 +12,4 @@ import {
 
 export default {
   paymentId: __t.u64(),
-  transferId: __t.string(),
 };

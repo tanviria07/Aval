@@ -6,14 +6,13 @@
 import { type Infer as __Infer } from "spacetimedb";
 
 // Import all reducer arg schemas
+import CancelPaymentReducer from "../cancel_payment_reducer";
 import ConfirmPaymentReducer from "../confirm_payment_reducer";
 import CreateListingReducer from "../create_listing_reducer";
 import DemoFastForwardReducer from "../demo_fast_forward_reducer";
 import DemoResetReducer from "../demo_reset_reducer";
 import JoinReducer from "../join_reducer";
-import MarkPaymentHeldReducer from "../mark_payment_held_reducer";
-import MarkRefundedReducer from "../mark_refunded_reducer";
-import MarkReleasedReducer from "../mark_released_reducer";
+import ObjectionElapsedReducer from "../objection_elapsed_reducer";
 import OnConnectReducer from "../on_connect_reducer";
 import OnDisconnectReducer from "../on_disconnect_reducer";
 import PausePaymentReducer from "../pause_payment_reducer";
@@ -23,14 +22,13 @@ import SetConfigReducer from "../set_config_reducer";
 import StopPaymentReducer from "../stop_payment_reducer";
 import TimeoutPaymentReducer from "../timeout_payment_reducer";
 
+export type CancelPaymentParams = __Infer<typeof CancelPaymentReducer>;
 export type ConfirmPaymentParams = __Infer<typeof ConfirmPaymentReducer>;
 export type CreateListingParams = __Infer<typeof CreateListingReducer>;
 export type DemoFastForwardParams = __Infer<typeof DemoFastForwardReducer>;
 export type DemoResetParams = __Infer<typeof DemoResetReducer>;
 export type JoinParams = __Infer<typeof JoinReducer>;
-export type MarkPaymentHeldParams = __Infer<typeof MarkPaymentHeldReducer>;
-export type MarkRefundedParams = __Infer<typeof MarkRefundedReducer>;
-export type MarkReleasedParams = __Infer<typeof MarkReleasedReducer>;
+export type ObjectionElapsedParams = __Infer<typeof ObjectionElapsedReducer>;
 export type OnConnectParams = __Infer<typeof OnConnectReducer>;
 export type OnDisconnectParams = __Infer<typeof OnDisconnectReducer>;
 export type PausePaymentParams = __Infer<typeof PausePaymentReducer>;

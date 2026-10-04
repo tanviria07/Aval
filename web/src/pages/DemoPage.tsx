@@ -7,6 +7,7 @@ import {
   onNessieLog,
   onPayments,
   pausePayment,
+  releasePayment,
   stopPayment,
   type MomAccount,
   useRows,
@@ -18,7 +19,9 @@ export function DemoPage() {
   const payments = useRows(onPayments)
   const logs = useRows(onNessieLog)
   const [account, setAccount] = useState<MomAccount | null>(null)
-  const held = [...payments].filter(payment => payment.status === 'held').sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? 1 : -1))[0]
+  const held = [...payments]
+    .filter(payment => payment.status === 'held' || payment.status === 'objection')
+    .sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? 1 : -1))[0]
   const guardians = members.filter(member => member.role === 'guardian')
 
   useEffect(() => {
@@ -76,7 +79,12 @@ export function DemoPage() {
                 <button type="button" onClick={() => void stopPayment(held.id)} className="h-10 rounded-xl bg-red text-sm font-semibold text-white">
                   Stop
                 </button>
-                <button type="button" disabled className="h-10 rounded-xl bg-slate-200 text-sm font-semibold text-slate2">
+                <button
+                  type="button"
+                  disabled={held.status !== 'held'}
+                  onClick={() => void releasePayment(held.id)}
+                  className="h-10 rounded-xl bg-teal text-sm font-semibold text-white disabled:bg-slate-200 disabled:text-slate2"
+                >
                   Approve
                 </button>
               </div>

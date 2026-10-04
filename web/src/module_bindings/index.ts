@@ -34,14 +34,13 @@ import {
 } from "spacetimedb";
 
 // Import all reducer arg schemas
+import CancelPaymentReducer from "./cancel_payment_reducer";
 import ConfirmPaymentReducer from "./confirm_payment_reducer";
 import CreateListingReducer from "./create_listing_reducer";
 import DemoFastForwardReducer from "./demo_fast_forward_reducer";
 import DemoResetReducer from "./demo_reset_reducer";
 import JoinReducer from "./join_reducer";
-import MarkPaymentHeldReducer from "./mark_payment_held_reducer";
-import MarkRefundedReducer from "./mark_refunded_reducer";
-import MarkReleasedReducer from "./mark_released_reducer";
+import ObjectionElapsedReducer from "./objection_elapsed_reducer";
 import PausePaymentReducer from "./pause_payment_reducer";
 import ReleasePaymentReducer from "./release_payment_reducer";
 import RequestPaymentReducer from "./request_payment_reducer";
@@ -59,11 +58,13 @@ import * as SendTransferProcedure from "./send_transfer_procedure";
 import AccountRow from "./account_table";
 import AuditEventRow from "./audit_event_table";
 import ConfigRow from "./config_table";
+import HoldTimerRow from "./hold_timer_table";
 import ListingRow from "./listing_table";
 import MemberRow from "./member_table";
 import MyLimitsRow from "./my_limits_table";
 import NessieLogRow from "./nessie_log_table";
 import OutboxRow from "./outbox_table";
+import PayeeCacheRow from "./payee_cache_table";
 import PaymentRow from "./payment_table";
 import ReleaseTimerRow from "./release_timer_table";
 import SecretLimitRow from "./secret_limit_table";
@@ -105,6 +106,17 @@ const tablesSchema = __schema({
       { name: 'config_key_key', constraint: 'unique', columns: ['key'] },
     ],
   }, ConfigRow),
+  holdTimer: __table({
+    name: 'hold_timer',
+    indexes: [
+      { accessor: 'id', name: 'hold_timer_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'hold_timer_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, HoldTimerRow),
   listing: __table({
     name: 'listing',
     indexes: [
@@ -149,6 +161,17 @@ const tablesSchema = __schema({
       { name: 'outbox_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, OutboxRow),
+  payeeCache: __table({
+    name: 'payee_cache',
+    indexes: [
+      { accessor: 'nameKey', name: 'payee_cache_name_key_idx_btree', algorithm: 'btree', columns: [
+        'nameKey',
+      ] },
+    ],
+    constraints: [
+      { name: 'payee_cache_name_key_key', constraint: 'unique', columns: ['nameKey'] },
+    ],
+  }, PayeeCacheRow),
   payment: __table({
     name: 'payment',
     indexes: [
@@ -199,14 +222,13 @@ const tablesSchema = __schema({
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
+  __reducerSchema("cancel_payment", CancelPaymentReducer),
   __reducerSchema("confirm_payment", ConfirmPaymentReducer),
   __reducerSchema("create_listing", CreateListingReducer),
   __reducerSchema("demo_fast_forward", DemoFastForwardReducer),
   __reducerSchema("demo_reset", DemoResetReducer),
   __reducerSchema("join", JoinReducer),
-  __reducerSchema("mark_payment_held", MarkPaymentHeldReducer),
-  __reducerSchema("mark_refunded", MarkRefundedReducer),
-  __reducerSchema("mark_released", MarkReleasedReducer),
+  __reducerSchema("objection_elapsed", ObjectionElapsedReducer),
   __reducerSchema("pause_payment", PausePaymentReducer),
   __reducerSchema("release_payment", ReleasePaymentReducer),
   __reducerSchema("request_payment", RequestPaymentReducer),
@@ -227,8 +249,12 @@ type __SchemaWithTableAccessorAliases = Omit<typeof tablesSchema.schemaType, "ta
   tables: typeof tablesSchema.schemaType.tables & {
     /** @deprecated Use `auditEvent` instead. This alias will be removed in the next major version. */
     readonly "audit_event": Omit<typeof tablesSchema.schemaType.tables["auditEvent"], "accessorName"> & { readonly accessorName: "audit_event" };
+    /** @deprecated Use `holdTimer` instead. This alias will be removed in the next major version. */
+    readonly "hold_timer": Omit<typeof tablesSchema.schemaType.tables["holdTimer"], "accessorName"> & { readonly accessorName: "hold_timer" };
     /** @deprecated Use `nessieLog` instead. This alias will be removed in the next major version. */
     readonly "nessie_log": Omit<typeof tablesSchema.schemaType.tables["nessieLog"], "accessorName"> & { readonly accessorName: "nessie_log" };
+    /** @deprecated Use `payeeCache` instead. This alias will be removed in the next major version. */
+    readonly "payee_cache": Omit<typeof tablesSchema.schemaType.tables["payeeCache"], "accessorName"> & { readonly accessorName: "payee_cache" };
     /** @deprecated Use `releaseTimer` instead. This alias will be removed in the next major version. */
     readonly "release_timer": Omit<typeof tablesSchema.schemaType.tables["releaseTimer"], "accessorName"> & { readonly accessorName: "release_timer" };
     /** @deprecated Use `secretLimit` instead. This alias will be removed in the next major version. */
@@ -254,7 +280,9 @@ const REMOTE_MODULE = {
 
 const tableAccessorAliases = {
   "audit_event": "auditEvent",
+  "hold_timer": "holdTimer",
   "nessie_log": "nessieLog",
+  "payee_cache": "payeeCache",
   "release_timer": "releaseTimer",
   "secret_limit": "secretLimit",
   "my_limits": "myLimits",
@@ -280,8 +308,12 @@ type __DbViewBase = __DbConnectionImpl<typeof REMOTE_MODULE>["db"];
 export type DbView = __DbViewBase & {
   /** @deprecated Use `auditEvent` instead. This alias will be removed in the next major version. */
   readonly "audit_event": __DbViewBase["auditEvent"];
+  /** @deprecated Use `holdTimer` instead. This alias will be removed in the next major version. */
+  readonly "hold_timer": __DbViewBase["holdTimer"];
   /** @deprecated Use `nessieLog` instead. This alias will be removed in the next major version. */
   readonly "nessie_log": __DbViewBase["nessieLog"];
+  /** @deprecated Use `payeeCache` instead. This alias will be removed in the next major version. */
+  readonly "payee_cache": __DbViewBase["payeeCache"];
   /** @deprecated Use `releaseTimer` instead. This alias will be removed in the next major version. */
   readonly "release_timer": __DbViewBase["releaseTimer"];
   /** @deprecated Use `secretLimit` instead. This alias will be removed in the next major version. */
@@ -294,8 +326,12 @@ type __TablesBase = __QueryBuilder<typeof tablesSchema.schemaType>;
 export type Tables = __TablesBase & {
   /** @deprecated Use `auditEvent` instead. This alias will be removed in the next major version. */
   readonly "audit_event": __TablesBase["auditEvent"];
+  /** @deprecated Use `holdTimer` instead. This alias will be removed in the next major version. */
+  readonly "hold_timer": __TablesBase["holdTimer"];
   /** @deprecated Use `nessieLog` instead. This alias will be removed in the next major version. */
   readonly "nessie_log": __TablesBase["nessieLog"];
+  /** @deprecated Use `payeeCache` instead. This alias will be removed in the next major version. */
+  readonly "payee_cache": __TablesBase["payeeCache"];
   /** @deprecated Use `releaseTimer` instead. This alias will be removed in the next major version. */
   readonly "release_timer": __TablesBase["releaseTimer"];
   /** @deprecated Use `secretLimit` instead. This alias will be removed in the next major version. */

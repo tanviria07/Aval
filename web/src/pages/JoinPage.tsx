@@ -7,13 +7,13 @@ const SLOTS = ['A', 'B', 'C', 'D'] as const
 export function JoinPage() {
   const navigate = useNavigate()
   const [name, setName] = useState('')
-  const [role, setRole] = useState<Role>('elder')
+  const [role, setRole] = useState<Role>('mom')
   const [slot, setSlot] = useState<string | null>(null)
 
   function enter() {
     if (!name.trim() || !slot) return
     join(name.trim(), role, slot)
-    navigate(role === 'elder' ? '/mom' : '/guardian')
+    navigate(role === 'mom' ? '/mom' : '/guardian')
   }
 
   return (
@@ -33,7 +33,7 @@ export function JoinPage() {
         <div className="mt-5">
           <p className="text-sm font-medium">Role</p>
           <div className="mt-2 grid grid-cols-2 gap-2">
-            {(['elder', 'guardian'] as const).map(option => (
+            {(['mom', 'guardian'] as const).map(option => (
               <button
                 key={option}
                 type="button"
@@ -42,7 +42,7 @@ export function JoinPage() {
                   role === option ? 'bg-teal text-white' : 'bg-slate-100 text-slate2'
                 }`}
               >
-                {option === 'elder' ? 'Mom' : 'Guardian'}
+                {option === 'mom' ? 'Mom' : 'Guardian'}
               </button>
             ))}
           </div>

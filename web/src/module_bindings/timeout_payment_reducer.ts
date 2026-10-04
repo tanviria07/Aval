@@ -11,11 +11,11 @@ import {
 } from "spacetimedb";
 
 import {
-  ReleaseTimer,
+  HoldTimer,
 } from "./types";
 
 export default {
   get arg() {
-    return ReleaseTimer;
+    return HoldTimer;
   },
 };
