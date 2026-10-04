@@ -130,7 +130,7 @@ export function DemoPage() {
               <JoinQr name={momName} />
             </div>
           </div>
-          <Ledger logs={logs} payments={payments} />
+          <Ledger logs={logs} />
         </footer>
       </div>
     </main>
@@ -289,7 +289,7 @@ function BalanceTile({ label, cents, positive }: { label: string; cents?: number
   )
 }
 
-function Ledger({ logs, payments, className = '' }: { logs: NessieLog[]; payments: Payment[]; className?: string }) {
+function Ledger({ logs, className = '' }: { logs: NessieLog[]; className?: string }) {
   const rows = [...logs]
     .filter(log => log.method === 'POST' && log.path.includes('/transfers'))
     .sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? 1 : -1))
@@ -313,12 +313,10 @@ function Ledger({ logs, payments, className = '' }: { logs: NessieLog[]; payment
     return () => window.clearTimeout(timer)
   }, [logs])
 
-  const transferIds = transferIdsFor(rows, payments)
-
   return (
     <div className={`h-[240px] overflow-hidden bg-paper px-3 font-type text-[22px] text-ink ${className}`}>
       {rows.map(row => (
-        <LedgerLine key={row.id} log={row} fresh={fresh.includes(row.id)} transferId={transferIds.get(row.id)} />
+        <LedgerLine key={row.id} log={row} fresh={fresh.includes(row.id)} />
       ))}
     </div>
   )
@@ -340,39 +338,14 @@ function centsOf(log: NessieLog) {
   return Number.isFinite(dollars) ? Math.round(dollars * 100) : null
 }
 
-function kindMatches(kind: string, status: Payment['status']) {
-  if (kind === 'REFUND') return status === 'refunded' || status === 'refunding'
-  if (kind === 'RELEASE') return status === 'released' || status === 'releasing'
-  if (kind === 'DIRECT') return status === 'sent' || status === 'cleared'
-  if (kind === 'HOLD') return status === 'held' || status === 'holding' || status === 'objection'
-  return false
+function noteTransferId(note: string) {
+  const marker = ' · id '
+  const at = note.lastIndexOf(marker)
+  if (at < 0) return '—'
+  return shortTransferId(note.slice(at + marker.length).trim())
 }
 
-function transferIdsFor(rows: NessieLog[], payments: Payment[]) {
-  const ids = new Map<string, string>()
-  const used = new Set<string>()
-  const newest = [...payments].sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? 1 : -1))
-  for (const row of rows) {
-    const embedded = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.exec(row.note)?.[0]
-    if (embedded) {
-      ids.set(row.id, shortTransferId(embedded))
-      continue
-    }
-    const kind = kindOf(row)
-    const cents = centsOf(row)
-    const payment = newest.find(item => {
-      if (!item.transferId || used.has(item.transferId)) return false
-      if (cents != null && item.amountCents !== cents) return false
-      return kindMatches(kind, item.status)
-    })
-    if (!payment?.transferId) continue
-    used.add(payment.transferId)
-    ids.set(row.id, shortTransferId(payment.transferId))
-  }
-  return ids
-}
-
-function LedgerLine({ log, fresh, transferId }: { log: NessieLog; fresh: boolean; transferId?: string }) {
+function LedgerLine({ log, fresh }: { log: NessieLog; fresh: boolean }) {
   const kind = kindOf(log)
   const cents = centsOf(log)
   const route =
@@ -394,7 +367,7 @@ function LedgerLine({ log, fresh, transferId }: { log: NessieLog; fresh: boolean
       <span className="tabular-nums">{cents != null ? formatCents(cents) : '—'}</span>
       <span className="truncate">{route}</span>
       <span className="text-sepia">{log.status}</span>
-      <span className="text-sepia">{transferId ?? '—'}</span>
+      <span className="text-sepia">{noteTransferId(log.note)}</span>
     </p>
   )
 }

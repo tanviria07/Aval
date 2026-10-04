@@ -925,7 +925,7 @@ export const sendTransfer = spacetime.procedure(
       const done = finalStatus(plan.kind);
       if (!row || !expected || !done || row.status !== expected) return;
       const stamp = at();
-      logNessie(tx.db, stamp, 'POST', path, res.status, `${plan.kind} $${dollars(plan.amountCents)}`);
+      logNessie(tx.db, stamp, 'POST', path, res.status, `${plan.kind} $${dollars(plan.amountCents)} · id ${transferId}`);
       logNessie(tx.db, stamp, 'GET', fromPath, fromRes.status, 'balance');
       logNessie(tx.db, stamp, 'GET', toPath, toRes.status, 'balance');
       const fromNext = movedBalance(plan.fromBalance, fromCents, -plan.amountCents);
