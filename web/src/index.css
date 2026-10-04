@@ -5,8 +5,19 @@
 body {
   margin: 0;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-  background: #fbf8f3;
-  color: #0e1424;
+  background: #f4ecdd;
+  color: #2e241f;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  opacity: 0.06;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
 }
 
 #root {
@@ -14,7 +25,7 @@ body {
 }
 
 :focus-visible {
-  outline: 2px solid #0f766e;
+  outline: 2px solid #2f4a6d;
   outline-offset: 2px;
 }
 
@@ -22,37 +33,49 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-@keyframes soft-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgba(180, 83, 9, 0.28);
-  }
-  50% {
-    box-shadow: 0 0 0 16px rgba(180, 83, 9, 0);
-  }
+.ruled {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent 31px,
+    rgba(122, 92, 68, 0.16) 31px,
+    rgba(122, 92, 68, 0.16) 32px
+  );
 }
 
-.pulse-held {
-  animation: soft-pulse 3s ease-out infinite;
+.stamp {
+  display: inline-block;
+  border: 3px solid currentColor;
+  outline: 1px solid currentColor;
+  outline-offset: 2px;
+  padding: 0.2rem 0.5rem;
+  line-height: 1.15;
+  transform: rotate(-6deg);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='d'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .28 .78'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23d)'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='d'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .28 .78'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23d)'/%3E%3C/svg%3E");
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
 }
 
-@keyframes live-dot {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.45;
-  }
+.ticket-tear {
+  -webkit-mask-image: radial-gradient(circle at 7px 50%, transparent 5px, #000 5.5px);
+  mask-image: radial-gradient(circle at 7px 50%, transparent 5px, #000 5.5px);
+  -webkit-mask-size: 14px 100%;
+  mask-size: 14px 100%;
+  -webkit-mask-repeat: repeat-x;
+  mask-repeat: repeat-x;
 }
 
-.pulse-live {
-  animation: live-dot 2s ease-out infinite;
+.gingham {
+  background-color: #f4ecdd;
+  background-image:
+    repeating-linear-gradient(90deg, rgba(166, 61, 64, 0.85) 0 8px, transparent 8px 16px),
+    repeating-linear-gradient(0deg, rgba(166, 61, 64, 0.85) 0 8px, transparent 8px 16px);
 }
 
 @keyframes ledger-in {
   from {
-    background: rgba(15, 118, 110, 0.35);
+    background: rgba(111, 127, 94, 0.35);
   }
   to {
     background: transparent;

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import QRCode from 'qrcode'
-import { AlertTriangle, ShieldCheck } from 'lucide-react'
+import { Star } from 'lucide-react'
 import {
   demoReset,
   membersOnPayment,
@@ -14,12 +14,14 @@ import {
   type Payment,
   useRows,
 } from '../data'
-import { Avatar } from '../components/Avatar'
 import { CountdownBar, objectionEndsAt } from '../components/CountdownBar'
 import { Logo } from '../components/Logo'
 import { Money } from '../components/Money'
+import { Polaroid } from '../components/Polaroid'
 import { ReasonList } from '../components/ReasonList'
-import { StatusPill } from '../components/StatusPill'
+import { Stamp, StatusPill } from '../components/StatusPill'
+import { TicketStub } from '../components/TicketStub'
+import { WashiTape } from '../components/WashiTape'
 import { formatCents, formatClock } from '../format'
 
 export function DemoPage() {
@@ -52,28 +54,27 @@ export function DemoPage() {
   }
 
   return (
-    <main className="h-dvh w-screen overflow-hidden bg-ink p-8 text-white">
+    <main className="h-dvh w-screen overflow-hidden bg-demo p-8 text-paper">
       <div className="flex h-full min-h-0 flex-col gap-4">
-        <header className="flex shrink-0 items-center justify-between">
-          <div className="flex items-center gap-5">
-            <Logo className="h-8 w-[150px]" />
-            <p className="font-serif text-2xl italic text-white/70">Scams need silence.</p>
+        <header className="flex shrink-0 items-end justify-between gap-6 border-b border-paper/30 pb-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-4">
+              <Logo className="h-7 w-[128px]" color="#F4ECDD" />
+              <h1 className="truncate font-serif text-4xl uppercase tracking-wide">The Family Ledger</h1>
+            </div>
+            <p className="mt-1 font-type text-sm text-paper/80">Scams need silence. — Live edition</p>
           </div>
-          <p className="flex items-center gap-3 text-lg">
-            <span className="pulse-live h-3 w-3 rounded-full bg-home" aria-hidden />
-            <span className="uppercase tracking-[0.14em]">Live</span>
-            <span> · {connected} connected</span>
-          </p>
+          <Stamp label={`Live · ${connected} connected`} tone="red" className="shrink-0 text-sm" />
         </header>
 
         <div className="grid min-h-0 flex-1 grid-cols-12 gap-4">
           <section className="col-span-3 flex min-h-0 flex-col">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/60">Mom's screen</p>
-            <div className="mt-3 flex min-h-0 flex-1 items-center justify-center">
-              <div className="h-full max-h-[640px] w-full max-w-[320px] rounded-[40px] bg-ink-2 p-[10px]">
-                <div className="h-full overflow-hidden rounded-[30px] bg-paper text-ink">
-                  <MomMirror name={momName} balance={momBalance} payment={held} family={listed} />
+            <div className="flex min-h-0 flex-1 items-center justify-center">
+              <div className="flex h-full max-h-[620px] w-full max-w-[300px] flex-col bg-white px-3 pb-8 pt-3 shadow-scrap">
+                <div className="ruled min-h-0 flex-1 overflow-hidden bg-paper text-ink">
+                  <MomMirror name={momName} balance={momBalance} payment={held} />
                 </div>
+                <p className="mt-2 text-center font-script text-2xl leading-none text-ink">Mom's screen</p>
               </div>
             </div>
           </section>
@@ -83,8 +84,8 @@ export function DemoPage() {
           </section>
 
           <section className="col-span-3 flex min-h-0 flex-col">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/60">Family</p>
-            <ul className="mt-4 flex min-h-0 flex-1 flex-col gap-4 overflow-auto">
+            <p className="font-type text-xs uppercase tracking-[0.16em] text-paper/70">Family</p>
+            <ul className="mt-3 flex min-h-0 flex-1 flex-col gap-4 overflow-auto pr-1">
               {listed.map(member => (
                 <FamilyRow key={member.id} member={member} payment={held} />
               ))}
@@ -92,25 +93,25 @@ export function DemoPage() {
           </section>
         </div>
 
-        <footer className="grid h-[200px] shrink-0 grid-cols-12 gap-4">
+        <footer className="grid h-[210px] shrink-0 grid-cols-12 gap-4">
           <div className="col-span-5 flex min-w-0 flex-col">
             <div className="grid grid-cols-3 gap-3">
-              <BalanceTile label="Mom" cents={momBalance} positive="home" />
-              <BalanceTile label="Aval Hold" cents={holdBalance} positive="release" />
-              <BalanceTile label={held?.payeeName ?? 'Payee'} cents={payeeAccount?.balanceCents} positive="release" />
+              <BalanceTile label="Mom" cents={momBalance} positive="sage" />
+              <BalanceTile label="Aval Hold" cents={holdBalance} positive="blue" />
+              <BalanceTile label={held?.payeeName ?? 'Payee'} cents={payeeAccount?.balanceCents} positive="blue" />
             </div>
-            <div className="mt-auto flex items-center gap-4 text-sm text-white/30">
+            <div className="mt-auto flex items-center gap-4 font-type text-sm text-paper">
               <button type="button" onClick={() => void run(seedBank)}>
                 Seed
               </button>
               <button type="button" onClick={() => void run(demoReset)}>
                 Reset
               </button>
-              {note && <span className="truncate text-white/50">{note}</span>}
+              {note && <span className="truncate text-paper/80">{note}</span>}
             </div>
           </div>
           <Ledger logs={logs} className="col-span-5" />
-          <div className="col-span-2">
+          <div className="col-span-2 min-w-0">
             <JoinQr name={momName} />
           </div>
         </footer>
@@ -119,43 +120,28 @@ export function DemoPage() {
   )
 }
 
-function MomMirror({
-  name,
-  balance,
-  payment,
-  family,
-}: {
-  name: string
-  balance?: number
-  payment?: Payment
-  family: Member[]
-}) {
+function MomMirror({ name, balance, payment }: { name: string; balance?: number; payment?: Payment }) {
+  const hour = new Date().getHours()
+  const hello = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
   return (
     <div className="flex h-full flex-col overflow-hidden px-4 py-5">
       <p className="font-serif text-xl leading-tight">
-        {new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 17 ? 'Good afternoon' : 'Good evening'}, {name.split(' ')[0]}
+        {hello}, {name.split(' ')[0]}
       </p>
-      <div className="mt-4 rounded-card bg-white p-4 shadow-vault">
-        <p className="text-xs text-muted">Checking</p>
+      <div className="mt-4 bg-paper-2 p-4 shadow-scrap">
+        <p className="font-type text-xs text-sepia">Checking</p>
         <p className="mt-1">{balance != null ? <Money cents={balance} size="lg" /> : '—'}</p>
       </div>
       {payment ? (
         <div className="mt-4 flex flex-1 flex-col items-center text-center">
-          <span className="flex h-16 w-16 items-center justify-center rounded-full bg-held-bg text-held">
-            <ShieldCheck size={28} strokeWidth={1.75} aria-hidden />
-          </span>
-          <p className="mt-3 font-serif text-lg leading-tight">Held safely at your bank</p>
-          <p className="mt-2 text-sm">Your family is looking at it with you.</p>
-          <p className="mt-3 text-sm text-muted">{payment.payeeName}</p>
+          <StatusPill status={payment.status} />
+          <p className="mt-4 font-serif text-lg leading-tight">Held safely at your bank</p>
+          <p className="mt-2 font-sans text-sm">Your family is looking at it with you.</p>
+          <p className="mt-3 font-sans text-sm text-sepia">{payment.payeeName}</p>
           <Money cents={payment.amountCents} size="md" />
-          <div className="mt-4 flex justify-center gap-2">
-            {family.slice(0, 4).map(member => (
-              <Avatar key={member.id} name={member.name} online={member.online} size={32} />
-            ))}
-          </div>
         </div>
       ) : (
-        <p className="mt-6 text-sm text-muted">No payment is waiting.</p>
+        <p className="mt-6 font-sans text-sm text-sepia">No payment is waiting.</p>
       )}
     </div>
   )
@@ -174,34 +160,38 @@ function Stage({ payment }: { payment?: Payment }) {
 
   if (!payment) {
     return (
-      <div className="flex h-full items-center justify-center rounded-card bg-ink-2">
-        <p className="font-serif text-4xl text-white/40">Waiting for a payment…</p>
+      <div className="flex h-full items-center justify-center bg-paper-2 text-ink shadow-scrap">
+        <p className="font-serif text-4xl text-sepia">Waiting for a payment…</p>
       </div>
     )
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-card bg-ink-2">
+    <div className="flex h-full min-h-0 flex-col">
       {payment.secretFlag && (
-        <div className="flex items-center gap-3 bg-alert px-6 py-4 text-white">
-          <AlertTriangle size={28} strokeWidth={1.75} aria-hidden />
-          <div>
-            <p className="text-xl font-semibold">Mom says someone told her to keep this secret. Call her now.</p>
-            <p className="text-base text-white/80">Her approval does not count.</p>
+        <div className="gingham mb-3 p-2">
+          <div className="flex items-center gap-3 bg-paper px-5 py-3 text-ink">
+            <Star className="shrink-0 text-stamp" size={26} strokeWidth={1.75} aria-hidden />
+            <div>
+              <p className="font-sans text-xl font-semibold">Mom says someone told her to keep this secret. Call her now.</p>
+              <p className="font-sans text-base text-sepia">Her approval does not count.</p>
+            </div>
           </div>
         </div>
       )}
-      <div className="flex min-h-0 flex-1 flex-col justify-center px-10 py-6">
-        <StatusPill status={payment.status} className="w-fit text-[18px]" />
-        <p className="mt-4">
-          <Money cents={payment.amountCents} size="hero" className="text-white" />
-        </p>
-        <p className="mt-3 text-[28px] text-white/80">to {payment.payeeName}</p>
-        <div className="mt-6 max-w-xl">
-          <ReasonList reasonsJson={payment.reasonsJson} tone="light" />
+      <TicketStub id={payment.id} punch="#2A211C" className="flex min-h-0 flex-1 flex-col justify-center">
+        <div className="mt-3">
+          <StatusPill status={payment.status} className="text-lg" />
         </div>
-        {releasing && endsAt != null && <CountdownBar endsAt={endsAt} large surface="dark" className="mt-8 max-w-xl" />}
-      </div>
+        <p className="mt-4">
+          <Money cents={payment.amountCents} size="hero" />
+        </p>
+        <p className="mt-3 font-sans text-[28px]">to {payment.payeeName}</p>
+        <div className="mt-5 max-w-xl">
+          <ReasonList reasonsJson={payment.reasonsJson} />
+        </div>
+        {releasing && endsAt != null && <CountdownBar endsAt={endsAt} large className="mt-6 max-w-xl" />}
+      </TicketStub>
     </div>
   )
 }
@@ -209,21 +199,20 @@ function Stage({ payment }: { payment?: Payment }) {
 function FamilyRow({ member, payment }: { member: Member; payment?: Payment }) {
   const action = latestAction(member, payment)
   return (
-    <li className={`flex items-center gap-4 ${member.online ? '' : 'opacity-40'}`}>
-      <Avatar name={member.name} online={member.online} size={40} />
-      <span className="min-w-0 flex-1 truncate text-[22px]">{member.name}</span>
-      <span className={`shrink-0 rounded-full px-3 py-1 text-sm font-medium ${action.className}`}>{action.label}</span>
+    <li className="flex items-center gap-3">
+      <Polaroid name={member.name} online={member.online} />
+      <Stamp label={action.label} tone={action.tone} className="text-[11px]" />
     </li>
   )
 }
 
-function latestAction(member: Member, payment?: Payment) {
-  const waiting = { label: 'Waiting', className: 'bg-white/10 text-white/70' }
+function latestAction(member: Member, payment?: Payment): { label: string; tone: 'red' | 'mustard' | 'sage' | 'sepia' } {
+  const waiting = { label: 'Waiting', tone: 'sepia' as const }
   if (!payment) return waiting
   const stops = (payment.stoppedBy ?? '').split(',').filter(Boolean)
-  if (stops.includes(member.id)) return { label: 'Stopped', className: 'bg-alert-bg text-alert' }
-  if (payment.pausedBy === member.id) return { label: 'Paused', className: 'bg-held-bg text-held' }
-  if (payment.paidBy === member.id) return { label: 'Confirmed', className: 'bg-release-bg text-release' }
+  if (stops.includes(member.id)) return { label: 'Stopped', tone: 'red' }
+  if (payment.pausedBy === member.id) return { label: 'Paused', tone: 'mustard' }
+  if (payment.paidBy === member.id) return { label: 'Approved', tone: 'sage' }
   return waiting
 }
 
@@ -244,14 +233,15 @@ function useDelta(cents?: number) {
   return delta
 }
 
-function BalanceTile({ label, cents, positive }: { label: string; cents?: number; positive: 'home' | 'release' }) {
+function BalanceTile({ label, cents, positive }: { label: string; cents?: number; positive: 'sage' | 'blue' }) {
   const delta = useDelta(cents)
   return (
-    <div className="min-w-0">
-      <p className="truncate text-sm text-white/60">{label}</p>
-      <div className="mt-2">{cents != null ? <Money cents={cents} size="tile" className="text-white" /> : <span className="text-white/40">—</span>}</div>
+    <div className="relative min-w-0 bg-paper px-2 pb-3 pt-5 text-ink">
+      <WashiTape className="-top-2 left-2 w-12" />
+      <p className="truncate font-type text-[11px] uppercase text-sepia">{label}</p>
+      <div className="mt-1">{cents != null ? <Money cents={cents} size="lg" /> : <span className="text-sepia">—</span>}</div>
       {delta != null && delta !== 0 && (
-        <p className={`mt-1 text-lg tabular-nums ${delta < 0 ? 'text-held-bg' : positive === 'home' ? 'text-home-bg' : 'text-release-bg'}`}>
+        <p className={`mt-1 font-sans text-sm tabular-nums ${delta < 0 ? 'text-stamp' : positive === 'sage' ? 'text-sage-ink' : 'text-blue'}`}>
           {delta > 0 ? '+' : '−'}
           {formatCents(Math.abs(delta))}
         </p>
@@ -284,7 +274,7 @@ function Ledger({ logs, className = '' }: { logs: NessieLog[]; className?: strin
   }, [logs])
 
   return (
-    <div className={`min-h-0 overflow-auto font-mono text-[16px] leading-7 ${className}`}>
+    <div className={`min-h-0 overflow-auto bg-paper px-3 py-2 font-type text-[15px] leading-7 text-ink ${className}`}>
       {rows.map(row => (
         <LedgerLine key={row.id} log={row} fresh={fresh.includes(row.id)} />
       ))}
@@ -308,14 +298,14 @@ function LedgerLine({ log, fresh }: { log: NessieLog; fresh: boolean }) {
             ? 'Margaret → payee'
             : 'Needs attention'
   const color =
-    kind === 'HOLD' ? 'text-held-bg' : kind === 'RELEASE' ? 'text-release-bg' : kind === 'REFUND' ? 'text-home-bg' : kind === 'DIRECT' ? 'text-white/70' : 'text-alert-bg'
+    kind === 'HOLD' ? 'text-stamp' : kind === 'RELEASE' ? 'text-blue' : kind === 'REFUND' ? 'text-sage-ink' : kind === 'DIRECT' ? 'text-sepia' : 'text-stamp'
   return (
-    <p className={`grid grid-cols-[92px_88px_120px_1fr_48px] gap-3 ${fresh ? 'ledger-fresh' : ''} ${color}`}>
-      <span className="text-white/70">{formatClock(log.at)}</span>
-      <span>{kind}</span>
-      <span className="tabular-nums text-white">{dollars != null && Number.isFinite(dollars) ? formatCents(Math.round(dollars * 100)) : '—'}</span>
-      <span className="truncate text-white/80">{route}</span>
-      <span className="text-white/60">{log.status}</span>
+    <p className={`grid grid-cols-[84px_78px_108px_1fr_40px] gap-2 border-b border-dotted border-sepia/40 ${fresh ? 'ledger-fresh' : ''}`}>
+      <span className="text-sepia">{formatClock(log.at)}</span>
+      <span className={color}>{kind}</span>
+      <span className="font-sans tabular-nums">{dollars != null && Number.isFinite(dollars) ? formatCents(Math.round(dollars * 100)) : '—'}</span>
+      <span className="truncate">{route}</span>
+      <span className="text-sepia">{log.status}</span>
     </p>
   )
 }
@@ -324,14 +314,15 @@ function JoinQr({ name }: { name: string }) {
   const [svg, setSvg] = useState('')
   useEffect(() => {
     const url = `${window.location.origin}/join`
-    QRCode.toString(url, { type: 'svg', margin: 0, color: { dark: '#0E1424', light: '#FFFFFF' } })
+    QRCode.toString(url, { type: 'svg', margin: 0, color: { dark: '#2E241F', light: '#F4ECDD' } })
       .then(setSvg)
       .catch(() => setSvg(''))
   }, [])
   return (
-    <div className="flex h-full flex-col items-center justify-center rounded-card bg-white px-3 py-3 text-ink">
-      <div className="h-[140px] w-[140px] [&_svg]:h-full [&_svg]:w-full" dangerouslySetInnerHTML={{ __html: svg }} />
-      <p className="mt-2 text-center text-sm leading-tight">Scan to join {name}'s family</p>
+    <div className="relative flex h-full flex-col items-center justify-center bg-paper px-3 py-3 text-ink">
+      <span className="stamp absolute right-2 top-2 border-stamp font-type text-[10px] uppercase text-stamp">Aval</span>
+      <div className="h-[120px] w-[120px] [&_svg]:h-full [&_svg]:w-full" dangerouslySetInnerHTML={{ __html: svg }} />
+      <p className="mt-2 text-center font-sans text-sm leading-tight">Scan to join {name}'s family</p>
     </div>
   )
 }

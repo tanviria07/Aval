@@ -3,7 +3,7 @@ type Props = {
   color?: string
 }
 
-export function Logo({ className = 'h-7 w-[132px]', color = '#0F766E' }: Props) {
+export function Logo({ className = 'h-7 w-[132px]', color = '#2E241F' }: Props) {
   return (
     <span
       role="img"

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { CheckCircle, House, Shield, ShieldCheck } from 'lucide-react'
+import { CheckCircle, House, Shield } from 'lucide-react'
 import {
   cancelPayment,
   computeRiskScore,
@@ -20,7 +20,10 @@ import { Avatar } from '../components/Avatar'
 import { Button } from '../components/Button'
 import { Logo } from '../components/Logo'
 import { Money } from '../components/Money'
+import { PaperCard } from '../components/PaperCard'
+import { Polaroid } from '../components/Polaroid'
 import { StatusPill } from '../components/StatusPill'
+import { WashiTape } from '../components/WashiTape'
 import { dollarsToCents } from '../format'
 
 type View = 'home' | 'send' | 'secrecy' | 'result'
@@ -121,7 +124,7 @@ export function MomPage() {
             : 'home'
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-paper text-ink">
+    <main className="ruled min-h-screen overflow-x-hidden bg-paper text-ink">
       <div className="mx-auto flex min-h-screen w-full max-w-[440px] flex-col gap-8 px-5 py-8 text-[20px]">
         <Logo className="h-6 w-[112px]" />
         {screen === 'home' && (
@@ -190,42 +193,42 @@ function Home({
 }) {
   return (
     <div className="rise-in flex flex-col gap-8">
-      <h1 className="font-serif text-[32px] font-medium leading-tight">{greeting(name)}</h1>
-      <section className="rounded-card bg-white p-6 shadow-vault">
-        <p className="text-sm text-muted">Checking</p>
+      <h1 className="font-serif text-[32px] leading-tight">{greeting(name)}</h1>
+      <PaperCard tilt className="p-6 pb-8">
+        <p className="font-type text-sm text-sepia">Checking</p>
         <p className="mt-3">{balance != null ? <Money cents={balance} size="xl" /> : '—'}</p>
-        <p className="mt-4 flex items-center gap-2 text-base text-release">
+        <p className="mt-4 flex items-center gap-2 font-sans text-base text-sage-ink">
           <Shield size={18} strokeWidth={1.75} aria-hidden />
           Protected by your family
         </p>
-        {loadError && <p className="mt-3 text-base text-alert">{loadError}</p>}
-      </section>
+        {loadError && <p className="mt-3 font-sans text-base text-stamp">{loadError}</p>}
+      </PaperCard>
       <Button className="min-h-16 text-lg" onClick={onSend}>
         Send money
       </Button>
       <section>
-        <h2 className="text-sm font-medium text-muted">Recent</h2>
+        <h2 className="font-type text-sm text-sepia">Recent</h2>
         <ul className="mt-3 flex flex-col">
           {payments.map(payment => (
-            <li key={payment.id} className="flex min-h-16 items-center justify-between gap-3 border-b border-line py-3">
+            <li key={payment.id} className="flex min-h-16 items-center justify-between gap-3 border-b border-dotted border-sepia/40 py-3">
               <span className="min-w-0">
-                <span className="block truncate text-[20px]">{payment.payeeName}</span>
-                <StatusPill status={payment.status} className="mt-1" />
+                <span className="block truncate font-sans text-[20px]">{payment.payeeName}</span>
+                <StatusPill status={payment.status} className="mt-2" />
               </span>
               <Money cents={payment.amountCents} size="sm" />
             </li>
           ))}
-          {payments.length === 0 && <li className="py-4 text-base text-muted">No payments yet.</li>}
+          {payments.length === 0 && <li className="py-4 font-sans text-base text-sepia">No payments yet.</li>}
         </ul>
       </section>
       {bills.length > 0 && (
         <section>
-          <h2 className="text-sm font-medium text-muted">Bills</h2>
+          <h2 className="font-type text-sm text-sepia">Bills</h2>
           <ul className="mt-3 flex flex-col gap-3">
             {bills.map(bill => (
-              <li key={`${bill.payee}-${bill.paymentDate}`} className="flex items-center justify-between text-base">
+              <li key={`${bill.payee}-${bill.paymentDate}`} className="flex items-center justify-between font-sans text-base">
                 <span>{bill.payee}</span>
-                <span className="tabular-nums text-muted">
+                <span className="tabular-nums text-sepia">
                   ${bill.paymentAmount.toFixed(2)} · {bill.status}
                 </span>
               </li>
@@ -260,37 +263,37 @@ function Send({
 }) {
   return (
     <div className="rise-in flex flex-col gap-6">
-      <button type="button" onClick={onBack} className="self-start text-base text-muted">
+      <button type="button" onClick={onBack} className="self-start font-sans text-base text-sepia">
         Back
       </button>
-      <h1 className="font-serif text-[32px] font-medium">Send money</h1>
+      <h1 className="font-serif text-[32px]">Send money</h1>
       <ul className="flex flex-col gap-2">
         {customers.map(customer => (
           <li key={customer.id}>
             <button
               type="button"
               onClick={() => onPayee(customer.name)}
-              className={`flex min-h-16 w-full items-center gap-3 rounded-card border bg-white px-4 text-left ${
+              className={`flex min-h-16 w-full items-center gap-3 border bg-paper-2 px-4 text-left ${
                 payee === customer.name ? 'border-2 border-ink' : 'border-line'
               }`}
             >
               <Avatar name={customer.name} size={40} />
-              <span className="text-[20px]">{customer.name}</span>
+              <span className="font-sans text-[20px]">{customer.name}</span>
             </button>
           </li>
         ))}
       </ul>
       <label className="block">
-        <span className="text-sm text-muted">Amount</span>
+        <span className="font-type text-sm text-sepia">Amount</span>
         <input
           value={amount}
           onChange={event => onAmount(event.target.value)}
           inputMode="decimal"
           placeholder="0.00"
-          className="mt-2 h-20 w-full rounded-card border border-line bg-white px-4 font-sans text-[44px] tabular-nums"
+          className="mt-2 h-20 w-full border border-line bg-white px-4 font-sans text-[44px] tabular-nums text-ink"
         />
       </label>
-      {notice && <p className="text-base text-alert">{notice}</p>}
+      {notice && <p className="font-sans text-base text-stamp">{notice}</p>}
       <Button className="min-h-16" pending={sending} disabled={!payee || dollarsToCents(amount) == null} onClick={onSubmit}>
         Send
       </Button>
@@ -311,31 +314,31 @@ function Held({
 }) {
   const waiting = payment.status !== 'held' || answered(payment)
   return (
-    <div className="rise-in flex flex-1 flex-col items-center pt-8 text-center">
-      <span className="pulse-held flex h-28 w-28 items-center justify-center rounded-full bg-held-bg text-held">
-        <ShieldCheck size={48} strokeWidth={1.75} aria-hidden />
-      </span>
-      <h1 className="mt-8 font-serif text-[28px] font-medium leading-tight">Held safely at your bank</h1>
-      <p className="mt-4 text-[22px] leading-snug">Your family is looking at it with you.</p>
-      <p className="mt-6 text-base text-muted">
-        {payment.payeeName} · <Money cents={payment.amountCents} size="sm" />
-      </p>
-      <ul className="mt-8 flex flex-wrap justify-center gap-4">
-        {family.map(member => (
-          <li key={member.id} className="flex w-16 flex-col items-center gap-2">
-            <Avatar name={member.name} online={member.online} size={48} />
-            <span className="w-full truncate text-sm text-muted">{member.name.split(' ')[0]}</span>
-          </li>
-        ))}
-      </ul>
-      <div className="mt-auto flex w-full flex-col gap-3 pb-4 pt-12">
+    <div className="rise-in flex flex-1 flex-col items-center pt-4 text-center">
+      <PaperCard tilt className="w-full px-5 pb-10 pt-8">
+        <WashiTape className="-top-2 left-6" />
+        <StatusPill status={payment.status} className="text-base" />
+        <h1 className="mt-6 font-serif text-[28px] leading-tight">Held safely at your bank</h1>
+        <p className="mt-4 font-sans text-[22px] leading-snug">Your family is looking at it with you.</p>
+        <p className="mt-4 font-sans text-base text-sepia">
+          {payment.payeeName} · <Money cents={payment.amountCents} size="sm" />
+        </p>
+        <ul className="mt-6 flex flex-wrap justify-center gap-4">
+          {family.map(member => (
+            <li key={member.id}>
+              <Polaroid name={member.name} online={member.online} />
+            </li>
+          ))}
+        </ul>
+      </PaperCard>
+      <div className="mt-auto flex w-full flex-col gap-3 pb-4 pt-8">
         {payment.status === 'held' && !waiting && (
           <Button variant="quiet" onClick={onContinue}>
             I still want to send
           </Button>
         )}
         {(payment.status === 'held' || payment.status === 'objection') && (
-          <button type="button" onClick={onCancel} className="py-3 text-base text-muted">
+          <button type="button" onClick={onCancel} className="py-3 font-sans text-base text-sepia">
             Cancel payment
           </button>
         )}
@@ -347,7 +350,7 @@ function Held({
 function Secrecy({ onYes, onNo }: { onYes: () => void; onNo: () => void }) {
   return (
     <div className="rise-in flex flex-1 flex-col justify-center">
-      <h1 className="text-center font-serif text-[28px] font-medium leading-tight">Were you told to keep this secret?</h1>
+      <h1 className="text-center font-serif text-[28px] leading-tight">Were you told to keep this secret?</h1>
       <div className="mt-10 grid grid-cols-2 gap-3">
         <Button variant="quiet" className="min-h-28 text-2xl" onClick={onYes}>
           Yes
@@ -364,7 +367,7 @@ function Result({ payment, onHome }: { payment: Payment; onHome: () => void }) {
   const returned = payment.status === 'refunded' || payment.status === 'refunding'
   const failed = payment.status === 'failed'
   const Icon = returned ? House : failed ? Shield : CheckCircle
-  const color = returned ? 'text-home bg-home-bg' : failed ? 'text-alert bg-alert-bg' : 'text-release bg-release-bg'
+  const color = returned ? 'text-sage-ink' : failed ? 'text-stamp' : 'text-blue'
   const sentence = returned
     ? 'The money is back in your account.'
     : failed
@@ -374,10 +377,9 @@ function Result({ payment, onHome }: { payment: Payment; onHome: () => void }) {
         : 'Your family let this payment go through.'
   return (
     <div className="rise-in flex flex-1 flex-col items-center justify-center text-center">
-      <span className={`flex h-28 w-28 items-center justify-center rounded-full ${color}`}>
-        <Icon size={52} strokeWidth={1.75} aria-hidden />
-      </span>
-      <p className="mt-8 text-[22px] leading-snug">{sentence}</p>
+      <StatusPill status={payment.status} className="text-lg" />
+      <Icon className={`mt-6 ${color}`} size={48} strokeWidth={1.75} aria-hidden />
+      <p className="mt-6 font-sans text-[22px] leading-snug">{sentence}</p>
       <Button className="mt-10" onClick={onHome}>
         Back to home
       </Button>

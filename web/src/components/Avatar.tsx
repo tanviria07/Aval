@@ -1,4 +1,4 @@
-const tones = ['#E7E2D9', '#E4DDD2', '#D5E4E1', '#E8DFD4', '#D9E0E8']
+const tones = ['#E4D3C4', '#D9C7B0', '#E7D5D2', '#D5D0C4', '#E2D4C2']
 
 function toneFor(name: string) {
   let hash = 0
@@ -25,7 +25,7 @@ export function Avatar({ name, online, size = 40, className = '' }: Props) {
       </span>
       {online != null && (
         <span
-          className={`absolute bottom-0 right-0 rounded-full ring-2 ring-white ${online ? 'bg-home' : 'bg-muted'}`}
+          className={`absolute bottom-0 right-0 rounded-full ring-2 ring-paper ${online ? 'bg-sage-ink' : 'bg-sepia'}`}
           style={{ width: Math.max(8, Math.round(size * 0.28)), height: Math.max(8, Math.round(size * 0.28)) }}
           aria-label={online ? 'Online' : 'Offline'}
         />

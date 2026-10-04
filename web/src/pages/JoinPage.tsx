@@ -4,6 +4,8 @@ import { Wallet, Users } from 'lucide-react'
 import { join, onMembers, useRows, type Role } from '../data'
 import { Button } from '../components/Button'
 import { Logo } from '../components/Logo'
+import { PaperCard } from '../components/PaperCard'
+import { WashiTape } from '../components/WashiTape'
 
 const SLOTS = ['A', 'B', 'C', 'D'] as const
 
@@ -29,20 +31,20 @@ export function JoinPage() {
     <main className="flex min-h-screen justify-center overflow-x-hidden bg-paper px-5 py-16 text-ink">
       <section className="flex w-full max-w-[420px] flex-col">
         <Logo />
-        <h1 className="mt-10 font-serif text-[34px] font-medium leading-tight">Who are you in this family?</h1>
-        <div className="mt-8 flex flex-col gap-3">
+        <h1 className="mt-10 font-serif text-[34px] leading-tight">Who are you in this family?</h1>
+        <div className="mt-8 flex flex-col gap-4">
           <RoleCard
             selected={role === 'mom'}
             title="I'm Mom"
             detail="I send payments from my account"
-            icon={<Wallet strokeWidth={1.75} className="text-release" />}
+            icon={<Wallet strokeWidth={1.75} className="text-stamp" />}
             onClick={() => setRole('mom')}
           />
           <RoleCard
             selected={role === 'guardian'}
             title="I'm family"
             detail="I help keep those payments safe"
-            icon={<Users strokeWidth={1.75} className="text-release" />}
+            icon={<Users strokeWidth={1.75} className="text-sage-ink" />}
             onClick={() => setRole('guardian')}
           />
         </div>
@@ -52,7 +54,7 @@ export function JoinPage() {
             value={name}
             onChange={event => setName(event.target.value)}
             placeholder="Your name"
-            className="h-14 w-full rounded-btn border border-line bg-white px-4 text-lg"
+            className="h-14 w-full rounded-btn border border-line bg-white px-4 font-sans text-lg text-ink"
           />
         </label>
         <Button className="mt-4" disabled={!name.trim()} onClick={enter}>
@@ -77,19 +79,15 @@ function RoleCard({
   onClick: () => void
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={selected}
-      className={`flex items-start gap-4 rounded-card border bg-white p-5 text-left shadow-vault transition-colors duration-vault ease-vault ${
-        selected ? 'border-2 border-ink' : 'border-line'
-      }`}
-    >
-      <span className="mt-1">{icon}</span>
-      <span>
-        <span className="block font-serif text-2xl font-medium">{title}</span>
-        <span className="mt-1 block text-muted">{detail}</span>
-      </span>
-    </button>
+    <PaperCard tilt className={selected ? 'border-2 border-ink' : ''}>
+      <button type="button" onClick={onClick} aria-pressed={selected} className="relative flex w-full items-start gap-4 p-5 pb-7 text-left">
+        <WashiTape pattern={selected ? 'rose' : 'gingham'} className="-top-2 left-4" />
+        <span className="mt-1">{icon}</span>
+        <span>
+          <span className="block font-serif text-2xl">{title}</span>
+          <span className="mt-1 block font-sans text-sepia">{detail}</span>
+        </span>
+      </button>
+    </PaperCard>
   )
 }
